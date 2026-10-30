@@ -1,0 +1,1269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0c1312">
+<meta name="description" content="Murmur: a soundscape mixer that synthesizes rain, wind, ocean, fire and more in your browser.">
+<style>
+/* page reset (the artifact host supplied this; standalone hosting needs it) */
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<title>Murmur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: phone-first single column (transport, mixer, presets, timer). From 880px the mixer sits left and presets with the timer sit right. Dark first because it is used in bed; amber accent because it is a low-blue lamp colour. */
+:root{
+  --bg:#0c1312;
+  --surface:#131c1b;
+  --raise:#1f2d2b;
+  --line:#263634;
+  --fg:#e5ebe8;
+  --muted:#8b9d98;
+  --accent:#e9a95a;
+  --accent-ink:#1a1206;
+  --danger:#e8806e;
+  --f-display:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
+  --f-body:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#e7eeec;
+    --surface:#f4f8f7;
+    --raise:#d6e1de;
+    --line:#c1cfcb;
+    --fg:#10211f;
+    --muted:#4e625e;
+    --accent:#9a5a0c;
+    --accent-ink:#fff6e8;
+    --danger:#a93a28;
+    color-scheme:light;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#e7eeec;
+  --surface:#f4f8f7;
+  --raise:#d6e1de;
+  --line:#c1cfcb;
+  --fg:#10211f;
+  --muted:#4e625e;
+  --accent:#9a5a0c;
+  --accent-ink:#fff6e8;
+  --danger:#a93a28;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg);
+  color:var(--fg);
+  font-family:var(--f-body);
+  font-size:15px;
+  line-height:1.5;
+  padding-inline:16px;
+  padding-block:22px 56px;
+}
+.app{max-width:1000px;margin-inline:auto;display:grid;gap:28px}
+header{display:grid;gap:8px}
+h1{font:600 clamp(2.5rem,10vw,3.8rem)/1 var(--f-display);letter-spacing:-.035em;margin:0}
+.tagline{margin:0;color:var(--muted);max-width:46ch;text-wrap:balance}
+h2.label,.label{
+  font:500 11px/1.2 var(--f-mono);
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin:0;
+}
+.cols{display:grid;gap:32px;grid-template-columns:minmax(0,1fr)}
+.col{display:grid;gap:28px;min-width:0;align-content:start}
+@media (min-width:880px){
+  .cols{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:56px;align-items:start}
+}
+.sec{display:grid;gap:12px;min-width:0}
+
+/* transport */
+.transport{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:14px}
+.t-row{display:flex;align-items:center;gap:16px}
+.play{
+  width:68px;height:68px;flex:none;border-radius:50%;border:0;
+  background:var(--accent);color:var(--accent-ink);
+  display:grid;place-items:center;cursor:pointer;
+}
+.play svg{width:26px;height:26px;fill:currentColor}
+.play:focus-visible,.chip:focus-visible,.btn:focus-visible,.load:focus-visible,.del:focus-visible,.switch:focus-visible,input[type=text]:focus-visible{
+  outline:2px solid var(--accent);outline-offset:3px;
+}
+#scope{flex:1;min-width:0;width:100%;height:68px;display:block}
+.status{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font:400 12px/1.4 var(--f-mono);color:var(--muted)}
+.vol{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px}
+.vol .val{font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;min-width:2.5ch;text-align:right}
+
+/* sliders */
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:36px;margin:0;background:transparent;cursor:pointer;
+  --p:0%;
+}
+input[type=range]::-webkit-slider-runnable-track{
+  height:6px;border-radius:3px;
+  background:linear-gradient(to right,var(--accent) var(--p),var(--raise) var(--p));
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;box-sizing:border-box;
+  width:22px;height:22px;margin-top:-8px;border-radius:50%;
+  background:var(--fg);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--line);
+}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--raise)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--accent)}
+input[type=range]::-moz-range-thumb{
+  box-sizing:border-box;width:22px;height:22px;border-radius:50%;
+  background:var(--fg);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--line);
+}
+input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* mixer */
+.mixer{display:grid;gap:18px}
+.grp{display:grid}
+.grp-title{margin:0 0 6px}
+.ch{display:flex;gap:14px;padding:10px 0 8px;border-top:1px solid var(--line)}
+.ch-icon{flex:none;width:28px;padding-top:3px;color:var(--muted)}
+.ch-icon svg{display:block;width:28px;height:28px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ch.on .ch-icon{color:var(--accent)}
+.ch-body{flex:1;min-width:0;display:grid}
+.ch-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.ch-head label{font:600 18px/1.2 var(--f-display);letter-spacing:-.01em}
+.ch-val{font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+.ch-note{margin:0;font-size:13px;color:var(--muted);text-wrap:pretty}
+.mix-tools{display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid var(--line);padding-top:14px;flex-wrap:wrap}
+.mix-tools p{margin:0;font-size:13px;color:var(--muted);flex:1;min-width:200px}
+.switch{
+  display:inline-flex;align-items:center;gap:10px;background:none;border:0;color:var(--fg);
+  font:600 14px var(--f-body);cursor:pointer;padding:6px 0;
+}
+.switch .track{width:40px;height:22px;border-radius:11px;background:var(--raise);border:1px solid var(--line);position:relative;flex:none}
+.switch .track::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--muted)}
+.switch[aria-checked="true"] .track{background:var(--accent);border-color:var(--accent)}
+.switch[aria-checked="true"] .track::after{left:20px;background:var(--accent-ink)}
+
+/* presets */
+.group{display:grid}
+.group-title{margin:6px 0 4px}
+.pr{display:flex;align-items:stretch;gap:8px;border-top:1px solid var(--line)}
+.pr .load{
+  flex:1;min-width:0;text-align:left;background:none;border:0;color:inherit;
+  padding:10px 0;cursor:pointer;font:inherit;display:grid;gap:2px;
+}
+.pr .name{font-weight:600;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.pr .sum{font:400 12px/1.4 var(--f-mono);color:var(--muted);overflow-wrap:anywhere}
+.pr .cur{font:500 10px var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.pr .del{
+  align-self:center;background:none;border:1px solid transparent;color:var(--muted);
+  font:400 12px var(--f-mono);padding:6px 8px;border-radius:6px;cursor:pointer;
+}
+.pr .del:hover{border-color:var(--line);color:var(--fg)}
+.pr .del.armed{color:var(--danger);border-color:var(--danger)}
+.empty{margin:0;padding:12px 0;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
+.save{display:flex;gap:8px;flex-wrap:wrap}
+input[type=text]{
+  flex:1;min-width:0;width:100%;max-width:100%;
+  background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:8px;
+  padding:10px 12px;font:inherit;
+}
+input[type=text]::placeholder{color:var(--muted)}
+.save input{flex:1 1 160px;width:auto}
+.btn{
+  background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:8px;
+  padding:10px 14px;font:600 14px var(--f-body);cursor:pointer;
+}
+.btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.note{margin:0;font:400 12px/1.5 var(--f-mono);color:var(--muted)}
+
+/* timer and rain surface */
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.surf{margin:2px 0 6px}
+.surf .chip{padding:5px 9px;font-size:12px}
+.chip{
+  background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:8px;
+  padding:8px 12px;font:500 13px var(--f-mono);cursor:pointer;
+}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.timer-line{margin:0;font:400 12px/1.5 var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.foot{margin:0;font:400 12px/1.6 var(--f-mono);color:var(--muted);max-width:70ch}
+.err{color:var(--danger)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+</head>
+<body>
+<audio id="out" playsinline hidden></audio>
+
+<main class="app">
+  <header>
+    <h1>Murmur</h1>
+    <p class="tagline">Mix rain, thunder, wind, water, fire and noise. Every sound is generated live as you listen, so nothing repeats.</p>
+  </header>
+
+  <div class="cols">
+    <div class="col">
+      <section class="transport" aria-label="Playback">
+        <div class="t-row">
+          <button class="play" id="play" type="button" aria-label="Play">
+            <svg id="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>
+            <svg id="icon-pause" viewBox="0 0 24 24" aria-hidden="true" hidden><rect x="5.5" y="4" width="4.5" height="16" rx="1"/><rect x="14" y="4" width="4.5" height="16" rx="1"/></svg>
+          </button>
+          <canvas id="scope" aria-hidden="true"></canvas>
+        </div>
+        <div class="status" aria-live="polite"><span id="status">Paused</span><span id="status-timer"></span></div>
+        <div class="vol">
+          <label class="label" for="vol">Master</label>
+          <input type="range" id="vol" min="0" max="100" step="1" value="70">
+          <span class="val" id="vol-val">70</span>
+        </div>
+      </section>
+
+      <section class="sec" aria-labelledby="h-mixer">
+        <h2 class="label" id="h-mixer">Mixer</h2>
+        <div class="mixer" id="mixer"></div>
+        <div class="mix-tools">
+          <button class="switch" id="drift" type="button" role="switch" aria-checked="false"><span class="track"></span><span>Drift</span></button>
+          <p>Levels wander slowly around your settings, so the mix never sits still.</p>
+        </div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="sec" aria-labelledby="h-presets">
+        <h2 class="label" id="h-presets">Presets</h2>
+        <div class="group">
+          <p class="label group-title">Starting points</p>
+          <div id="builtin"></div>
+        </div>
+        <div class="group">
+          <p class="label group-title">Your mixes</p>
+          <div id="saved"></div>
+        </div>
+        <form class="save" id="save-form">
+          <label class="label" for="save-name" style="flex-basis:100%">Save the current mix</label>
+          <input type="text" id="save-name" maxlength="40" placeholder="Name it, for example Rainy study" autocomplete="off">
+          <button class="btn primary" type="submit">Save</button>
+        </form>
+        <p class="note" id="save-note" role="status"></p>
+      </section>
+
+      <section class="sec" aria-labelledby="h-timer">
+        <h2 class="label" id="h-timer">Sleep timer</h2>
+        <div class="seg" id="timer-seg" role="group" aria-label="Sleep timer length">
+          <button class="chip" type="button" data-min="0" aria-pressed="true">Off</button>
+          <button class="chip" type="button" data-min="15" aria-pressed="false">15 min</button>
+          <button class="chip" type="button" data-min="30" aria-pressed="false">30 min</button>
+          <button class="chip" type="button" data-min="45" aria-pressed="false">45 min</button>
+          <button class="chip" type="button" data-min="60" aria-pressed="false">60 min</button>
+          <button class="chip" type="button" data-min="90" aria-pressed="false">90 min</button>
+        </div>
+        <p class="timer-line" id="timer-line">Timer off.</p>
+      </section>
+    </div>
+  </div>
+
+  <p class="foot">Sounds are synthesized on this device with the Web Audio API, so there are no audio files and no loop points. Some phones pause web audio when the screen locks, so test your sleep mix once before relying on it.</p>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s);
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  const LAYERS = [
+    { id: 'rain',  name: 'Rain',        trim: 1.5, note: 'Soft patter with scattered drops.' },
+    { id: 'wind',  name: 'Wind',        trim: 3.2, note: 'Gusts that rise and fall through a narrow gap.' },
+    { id: 'ocean', name: 'Ocean',       trim: 2.2, note: 'Swells about ten seconds apart, with foam on the crest.' },
+    { id: 'brown', name: 'Brown noise', trim: 1.2, note: 'Falls 6 dB per octave. Deep and soft.' },
+    { id: 'pink',  name: 'Pink noise',  trim: 1.1, note: 'Falls 3 dB per octave. Balanced, like steady rainfall.' },
+    { id: 'white', name: 'White noise', trim: 0.5, note: 'Flat across all frequencies. Bright and hissy.' }
+  ];
+
+  LAYERS.push(
+    { id: 'thunder', name: 'Thunder',     trim: 1.3, note: 'Distant rolls, one every half minute or so.' },
+    { id: 'stream',  name: 'Stream',      trim: 1.6, note: 'Bright running water over stones.' },
+    { id: 'fan',     name: 'Fan',         trim: 1.5, note: 'Air through blades over a low motor hum.' },
+    { id: 'fire',    name: 'Fire',        trim: 1.8, note: 'A low roar with pops and snaps.' },
+    { id: 'chimes',  name: 'Wind chimes', trim: 1.0, note: 'Soft metal tubes, struck in gusts.' }
+  );
+
+  const GROUPS = [
+    { title: 'Weather',      ids: ['rain', 'thunder', 'wind'] },
+    { title: 'Water',        ids: ['ocean', 'stream'] },
+    { title: 'Indoors',      ids: ['fan', 'fire', 'chimes'] },
+    { title: 'Noise colors', ids: ['brown', 'pink', 'white'] }
+  ];
+
+  const SURFACES = ['open', 'tin', 'window', 'tent', 'leaves'];
+  const SURF = {
+    open:   { label: 'Open air', short: 'open air', bed: { hp: 650,  lp: 7000,  g: 1.1, pk1: [1500, 0.8, 0], pk2: [3000, 0.8, 0] }, drop: { lp: 12000, pk: [3000, 1, 0],   g: 1 } },
+    tin:    { label: 'Tin roof', short: 'tin',      bed: { hp: 900,  lp: 8500,  g: 0.7, pk1: [1300, 5, 10],  pk2: [2600, 4, 8] },   drop: { lp: 12000, pk: [1800, 5, 12],  g: 2.4 } },
+    window: { label: 'Window',   short: 'glass',    bed: { hp: 350,  lp: 3200,  g: 0.7, pk1: [900, 1.5, 4],  pk2: [2400, 3, 5] },   drop: { lp: 5000,  pk: [3200, 4, 10],  g: 2 } },
+    tent:   { label: 'Tent',     short: 'tent',     bed: { hp: 300,  lp: 2600,  g: 0.9, pk1: [500, 1, 3],    pk2: [1500, 1, 0] },   drop: { lp: 2600,  pk: [700, 1.5, 6],  g: 1.8 } },
+    leaves: { label: 'Leaves',   short: 'leaves',   bed: { hp: 1400, lp: 10000, g: 0.9, pk1: [4500, 1, 3],   pk2: [7000, 1, 3] },  drop: { lp: 7000,  pk: [4500, 2, 6],   g: 1.2 } }
+  };
+
+  const BUILTIN = [
+    { id: 'b-shore',  name: 'Night shore', levels: { ocean: 0.55, rain: 0.22, wind: 0.18 }, drift: true },
+    { id: 'b-sleep',  name: 'Deep sleep',  levels: { brown: 0.5, rain: 0.3 }, drift: false },
+    { id: 'b-focus',  name: 'Focus rain',  levels: { rain: 0.5, pink: 0.14 }, drift: false },
+    { id: 'b-cabin',  name: 'Windy cabin', levels: { wind: 0.5, rain: 0.3, brown: 0.2 }, drift: true },
+    { id: 'b-storm',  name: 'Storm night', levels: { rain: 0.45, thunder: 0.45, wind: 0.25 }, drift: true, surface: 'tin' },
+    { id: 'b-fire',   name: 'Fireside',    levels: { fire: 0.5, rain: 0.2, brown: 0.15 }, drift: true, surface: 'window' },
+    { id: 'b-creek',  name: 'Creek and chimes', levels: { stream: 0.55, wind: 0.12, chimes: 0.3 }, drift: true },
+    { id: 'b-room',   name: 'Quiet room',  levels: { fan: 0.5, brown: 0.12 }, drift: false }
+  ];
+
+  const state = {
+    levels: Object.fromEntries(LAYERS.map(l => [l.id, 0])),
+    vol: 0.7,
+    surface: 'open',
+    drift: false,
+    playing: false,
+    timerMin: 0,
+    timerEnd: null,
+    fadeLen: 90,
+    saved: [],
+    mode: 'local',
+    armed: null
+  };
+
+  /* ---------- audio engine ---------- */
+  let ctx = null, nodes = null, bufs = null, layers = {}, routed = false;
+  const audioEl = $('#out');
+
+  function volGain(v) { return Math.pow(v, 2) * 0.9; }
+
+  function makeNoise(kind) {
+    const sr = ctx.sampleRate, L = Math.floor(sr * 8), X = Math.floor(sr * 0.6);
+    const raw = new Float32Array(L + X);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0, last = 0;
+    for (let i = 0; i < raw.length; i++) {
+      const w = Math.random() * 2 - 1;
+      if (kind === 'white') {
+        raw[i] = w;
+      } else if (kind === 'pink') {
+        b0 = 0.99886 * b0 + w * 0.0555179;
+        b1 = 0.99332 * b1 + w * 0.0750759;
+        b2 = 0.969 * b2 + w * 0.153852;
+        b3 = 0.8665 * b3 + w * 0.3104856;
+        b4 = 0.55 * b4 + w * 0.5329522;
+        b5 = -0.7616 * b5 - w * 0.016898;
+        raw[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362;
+        b6 = w * 0.115926;
+      } else {
+        last = (last + 0.02 * w) / 1.02;
+        raw[i] = last * 3.5;
+      }
+    }
+    const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
+    for (let i = 0; i < L; i++) {
+      if (i < X) {
+        const a = (i / X) * Math.PI / 2;
+        d[i] = raw[i] * Math.sin(a) + raw[L + i] * Math.cos(a);
+      } else {
+        d[i] = raw[i];
+      }
+    }
+    let s = 0;
+    for (let i = 0; i < L; i++) s += d[i] * d[i];
+    const k = 0.12 / (Math.sqrt(s / L) || 1);
+    for (let i = 0; i < L; i++) d[i] *= k;
+    return buf;
+  }
+
+  function makeDrops() {
+    const sr = ctx.sampleRate, L = Math.floor(sr * 20);
+    const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
+    const events = 20 * 18;
+    for (let e = 0; e < events; e++) {
+      const start = Math.floor(Math.random() * L);
+      const len = Math.floor(sr * (0.012 + Math.random() * 0.02));
+      const amp = 0.25 + Math.random() * 0.75;
+      const a = 0.15 + Math.random() * 0.6;
+      let lp = 0;
+      for (let i = 0; i < len; i++) {
+        lp += a * ((Math.random() * 2 - 1) - lp);
+        d[(start + i) % L] += lp * Math.exp(-i / (len * 0.28)) * amp;
+      }
+    }
+    let s = 0, pk = 0;
+    for (let i = 0; i < L; i++) { s += d[i] * d[i]; }
+    const k = 0.06 / (Math.sqrt(s / L) || 1);
+    for (let i = 0; i < L; i++) { d[i] *= k; pk = Math.max(pk, Math.abs(d[i])); }
+    if (pk > 0.95) { const f = 0.95 / pk; for (let i = 0; i < L; i++) d[i] *= f; }
+    return buf;
+  }
+
+  function noiseSrc(buf) {
+    const s = ctx.createBufferSource();
+    s.buffer = buf; s.loop = true;
+    s.start(0, Math.random() * buf.duration);
+    return s;
+  }
+  function filt(type, f, q) {
+    const n = ctx.createBiquadFilter();
+    n.type = type; n.frequency.value = f;
+    if (q != null) n.Q.value = q;
+    return n;
+  }
+  function panner(p) {
+    if (!ctx.createStereoPanner) return null;
+    const n = ctx.createStereoPanner(); n.pan.value = p; return n;
+  }
+  function lfo(freq, depth, target, P) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = freq; g.gain.value = depth;
+    o.connect(g); g.connect(target); o.start();
+    P.push(o, g);
+  }
+  function wide(buf, chain, out, P) {
+    [-0.7, 0.7].forEach(p => {
+      const s = noiseSrc(buf); P.push(s);
+      const tail = chain(s);
+      const pn = panner(p);
+      if (pn) { P.push(pn); tail.connect(pn); pn.connect(out); } else { tail.connect(out); }
+    });
+  }
+
+  function makeThunder() {
+    const sr = ctx.sampleRate, len = Math.floor(sr * 16);
+    const buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+    const bumps = [];
+    let tb = 0.3;
+    const nb = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < nb; i++) {
+      bumps.push({ t: tb, a: (i === 0 ? 0.6 : 0.2) + Math.random() * 0.5, tau: 0.8 + Math.random() * 2.2 });
+      tb += 0.4 + Math.random() * 2.4;
+    }
+    const crack = Math.random() < 0.5;
+    let br = 0, l1 = 0, l2 = 0;
+    for (let i = 0; i < len; i++) {
+      const x = i / sr;
+      let env = (1 - Math.exp(-x / 0.7)) * Math.exp(-x / 3.8) * 0.7;
+      for (let b = 0; b < bumps.length; b++) {
+        const u = bumps[b];
+        if (x >= u.t) env += u.a * 0.5 * Math.exp(-(x - u.t) / u.tau);
+      }
+      const w = Math.random() * 2 - 1;
+      br = (br + 0.02 * w) / 1.02;
+      const a = 0.015 + 0.06 * Math.exp(-x / 2.5);
+      l1 += a * (br * 3.5 - l1);
+      l2 += a * (l1 - l2);
+      let v = l2 * env;
+      if (crack && x < 0.12) v += w * Math.exp(-x / 0.02) * 0.12;
+      d[i] = v;
+    }
+    const fadeIn = Math.floor(sr * 0.005), fadeOut = Math.floor(sr * 1.5);
+    let pk = 0;
+    for (let i = 0; i < len; i++) {
+      if (i < fadeIn) d[i] *= i / fadeIn;
+      if (i > len - fadeOut) { const k = (len - i) / fadeOut; d[i] *= k * k; }
+      pk = Math.max(pk, Math.abs(d[i]));
+    }
+    const k = 0.9 / (pk || 1);
+    for (let i = 0; i < len; i++) d[i] *= k;
+    return buf;
+  }
+
+  function makeCrackle() {
+    const sr = ctx.sampleRate, L = Math.floor(sr * 30);
+    const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
+    const pop = (pos, amp) => {
+      const len = Math.floor(sr * (0.002 + Math.random() * 0.012));
+      let prev = 0;
+      for (let i = 0; i < len; i++) {
+        const w = Math.random() * 2 - 1;
+        d[(pos + i) % L] += (w - prev * 0.6) * Math.exp(-i / (len * 0.35)) * amp;
+        prev = w;
+      }
+    };
+    const singles = 30 * 7;
+    for (let n = 0; n < singles; n++) pop(Math.floor(Math.random() * L), Math.pow(Math.random(), 2.2) * 0.9 + 0.05);
+    const clusters = 30 * 0.5;
+    for (let c = 0; c < clusters; c++) {
+      const pos = Math.floor(Math.random() * L), cnt = 3 + Math.floor(Math.random() * 6);
+      for (let k = 0; k < cnt; k++) pop((pos + Math.floor(Math.random() * sr * 0.18)) % L, Math.pow(Math.random(), 1.8) * 0.8 + 0.05);
+    }
+    let pk = 0;
+    for (let i = 0; i < L; i++) pk = Math.max(pk, Math.abs(d[i]));
+    const k = 0.9 / (pk || 1);
+    for (let i = 0; i < L; i++) d[i] *= k;
+    return buf;
+  }
+
+  function makeBubbles() {
+    const sr = ctx.sampleRate, L = Math.floor(sr * 20);
+    const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
+    const n = 20 * 45;
+    for (let e = 0; e < n; e++) {
+      const start = Math.floor(Math.random() * L);
+      const dur = 0.015 + Math.random() * 0.04, len = Math.floor(sr * dur);
+      const f0 = 500 + Math.pow(Math.random(), 1.5) * 2800, k = 0.8 + Math.random() * 1.2;
+      const amp = 0.2 + Math.random() * 0.8;
+      let ph = 0;
+      for (let i = 0; i < len; i++) {
+        const tt = i / sr;
+        ph += 6.2832 * f0 * (1 + k * tt / dur) / sr;
+        d[(start + i) % L] += Math.sin(ph) * Math.exp(-tt / (dur * 0.5)) * (1 - Math.exp(-tt / 0.0015)) * amp;
+      }
+    }
+    let s = 0, pk = 0;
+    for (let i = 0; i < L; i++) s += d[i] * d[i];
+    const g = 0.08 / (Math.sqrt(s / L) || 1);
+    for (let i = 0; i < L; i++) { d[i] *= g; pk = Math.max(pk, Math.abs(d[i])); }
+    if (pk > 0.95) { const f = 0.95 / pk; for (let i = 0; i < L; i++) d[i] *= f; }
+    return buf;
+  }
+
+  function applyRainSurface(L, instant) {
+    if (!L || !L.sf || !ctx) return;
+    const S = SURF[state.surface] || SURF.open, t = ctx.currentTime;
+    const set = (prm, v) => {
+      if (instant) { prm.cancelScheduledValues(t); prm.value = v; }
+      else prm.setTargetAtTime(v, t, 0.25);
+    };
+    L.sf.bed.forEach(n => {
+      set(n.hp.frequency, S.bed.hp); set(n.lp.frequency, S.bed.lp); set(n.g.gain, S.bed.g);
+      set(n.pk1.frequency, S.bed.pk1[0]); set(n.pk1.Q, S.bed.pk1[1]); set(n.pk1.gain, S.bed.pk1[2]);
+      set(n.pk2.frequency, S.bed.pk2[0]); set(n.pk2.Q, S.bed.pk2[1]); set(n.pk2.gain, S.bed.pk2[2]);
+    });
+    L.sf.drop.forEach(n => {
+      set(n.lp.frequency, S.drop.lp); set(n.g.gain, S.drop.g);
+      set(n.pk.frequency, S.drop.pk[0]); set(n.pk.Q, S.drop.pk[1]); set(n.pk.gain, S.drop.pk[2]);
+    });
+  }
+
+  const BUILD = {
+    rain(L, P) {
+      L.sf = { bed: [], drop: [] };
+      wide(bufs.pink, s => {
+        const hp = filt('highpass', 650, 0.4), pk1 = filt('peaking', 1500, 0.8), pk2 = filt('peaking', 3000, 0.8);
+        const lp = filt('lowpass', 7000, 0.4), g = ctx.createGain();
+        P.push(hp, pk1, pk2, lp, g);
+        s.connect(hp); hp.connect(pk1); pk1.connect(pk2); pk2.connect(lp); lp.connect(g);
+        L.sf.bed.push({ hp, pk1, pk2, lp, g });
+        return g;
+      }, L.gain, P);
+      wide(bufs.drops, s => {
+        const lp = filt('lowpass', 12000, 0.5), pk = filt('peaking', 3000, 1), g = ctx.createGain();
+        P.push(lp, pk, g);
+        s.connect(lp); lp.connect(pk); pk.connect(g);
+        L.sf.drop.push({ lp, pk, g });
+        return g;
+      }, L.gain, P);
+      applyRainSurface(L, true);
+    },
+    wind(L, P) {
+      wide(bufs.pink, s => {
+        const bp = filt('bandpass', 520, 1.3), amp = ctx.createGain();
+        amp.gain.value = 0.6; P.push(bp, amp);
+        lfo(0.05 + Math.random() * 0.07, 280, bp.frequency, P);
+        lfo(0.17 + Math.random() * 0.1, 90, bp.frequency, P);
+        lfo(0.035 + Math.random() * 0.05, 0.35, amp.gain, P);
+        s.connect(bp); bp.connect(amp); return amp;
+      }, L.gain, P);
+    },
+    ocean(L, P) {
+      wide(bufs.brown, s => {
+        const lp = filt('lowpass', 420, 0.6), sw = ctx.createGain();
+        sw.gain.value = 0.6; P.push(lp, sw);
+        const f1 = 0.085 + Math.random() * 0.02;
+        lfo(f1, 380, lp.frequency, P);
+        lfo(f1, 0.45, sw.gain, P);
+        lfo(0.13 + Math.random() * 0.03, 0.1, sw.gain, P);
+        s.connect(lp); lp.connect(sw);
+        const foam = noiseSrc(bufs.pink), hp = filt('highpass', 1800, 0.5), fg = ctx.createGain();
+        fg.gain.value = 0.12; P.push(foam, hp, fg);
+        foam.connect(hp); hp.connect(fg); fg.connect(sw);
+        return sw;
+      }, L.gain, P);
+    },
+    brown(L, P) {
+      wide(bufs.brown, s => { const g = ctx.createGain(); P.push(g); s.connect(g); return g; }, L.gain, P);
+    },
+    pink(L, P) {
+      wide(bufs.pink, s => { const g = ctx.createGain(); P.push(g); s.connect(g); return g; }, L.gain, P);
+    },
+    thunder(L, P) {
+      if (!bufs.thunder) bufs.thunder = [makeThunder(), makeThunder(), makeThunder()];
+      let timer = 0;
+      function boom() {
+        if (ctx.state === 'running' && state.playing) {
+          const s = ctx.createBufferSource(), g = ctx.createGain(), pn = panner(Math.random() * 1.2 - 0.6);
+          s.buffer = bufs.thunder[Math.floor(Math.random() * bufs.thunder.length)];
+          s.playbackRate.value = 0.85 + Math.random() * 0.3;
+          g.gain.value = 0.4 + Math.random() * 0.6;
+          s.connect(g);
+          if (pn) { g.connect(pn); pn.connect(L.gain); } else { g.connect(L.gain); }
+          s.onended = () => { try { s.disconnect(); g.disconnect(); if (pn) pn.disconnect(); } catch (e) {} };
+          s.start();
+        }
+        timer = setTimeout(boom, (22 + Math.random() * 50) * 1000);
+      }
+      timer = setTimeout(boom, 3000 + Math.random() * 5000);
+      L.onKill.push(() => clearTimeout(timer));
+    },
+    stream(L, P) {
+      if (!bufs.bubbles) bufs.bubbles = makeBubbles();
+      wide(bufs.pink, s => {
+        const bp = filt('bandpass', 1900, 0.45), g = ctx.createGain();
+        g.gain.value = 0.8; P.push(bp, g);
+        lfo(0.06 + Math.random() * 0.05, 700, bp.frequency, P);
+        lfo(0.35 + Math.random() * 0.3, 0.2, g.gain, P);
+        s.connect(bp); bp.connect(g); return g;
+      }, L.gain, P);
+      wide(bufs.bubbles, s => {
+        const g = ctx.createGain(); g.gain.value = 1; P.push(g);
+        s.connect(g); return g;
+      }, L.gain, P);
+    },
+    fan(L, P) {
+      wide(bufs.pink, s => {
+        const hp = filt('highpass', 70, 0.5), lp = filt('lowpass', 2000, 0.6), g = ctx.createGain();
+        P.push(hp, lp, g);
+        s.connect(hp); hp.connect(lp); lp.connect(g); return g;
+      }, L.gain, P);
+      const f0 = 104 + Math.random() * 20;
+      [[1, 0.022], [2, 0.009], [3, 0.004]].forEach((h, i) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.value = f0 * h[0]; g.gain.value = h[1];
+        o.connect(g); g.connect(L.gain); o.start(); P.push(o, g);
+        if (i === 0) lfo(0.4 + Math.random() * 0.3, h[1] * 0.2, g.gain, P);
+      });
+    },
+    fire(L, P) {
+      if (!bufs.crackle) bufs.crackle = makeCrackle();
+      wide(bufs.brown, s => {
+        const lp = filt('lowpass', 380, 0.7), g = ctx.createGain();
+        g.gain.value = 0.8; P.push(lp, g);
+        lfo(0.3 + Math.random() * 0.4, 0.22, g.gain, P);
+        s.connect(lp); lp.connect(g); return g;
+      }, L.gain, P);
+      wide(bufs.pink, s => {
+        const bp = filt('bandpass', 3200, 0.6), g = ctx.createGain();
+        g.gain.value = 0.07; P.push(bp, g);
+        lfo(0.7 + Math.random() * 0.6, 0.04, g.gain, P);
+        s.connect(bp); bp.connect(g); return g;
+      }, L.gain, P);
+      wide(bufs.crackle, s => {
+        const g = ctx.createGain(); g.gain.value = 0.55; P.push(g);
+        s.connect(g); return g;
+      }, L.gain, P);
+    },
+    chimes(L, P) {
+      const sr = ctx.sampleRate, irLen = Math.floor(sr * 2.4), ir = ctx.createBuffer(2, irLen, sr);
+      for (let c = 0; c < 2; c++) {
+        const d = ir.getChannelData(c);
+        for (let i = 0; i < irLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 3);
+      }
+      const conv = ctx.createConvolver(), wet = ctx.createGain(), dry = ctx.createGain(), bus = ctx.createGain();
+      conv.buffer = ir; wet.gain.value = 0.45; dry.gain.value = 0.8;
+      P.push(conv, wet, dry, bus);
+      bus.connect(dry); bus.connect(conv); conv.connect(wet);
+      dry.connect(L.gain); wet.connect(L.gain);
+      const notes = [587.33, 659.25, 739.99, 880, 987.77, 1174.66];
+      const partials = [[1, 1, 3.6], [2.76, 0.28, 1.8], [5.4, 0.1, 0.8]];
+      let prev = -1, timer = 0;
+      function strike(t, amp) {
+        let i;
+        do { i = Math.floor(Math.random() * notes.length); } while (i === prev);
+        prev = i;
+        const f = notes[i] * (1 + (Math.random() - 0.5) * 0.004);
+        partials.forEach(pt => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.type = 'sine'; o.frequency.value = f * pt[0];
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.linearRampToValueAtTime(amp * pt[1], t + 0.004);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + pt[2]);
+          o.connect(g); g.connect(bus);
+          o.start(t); o.stop(t + pt[2] + 0.1);
+          o.onended = () => { try { o.disconnect(); g.disconnect(); } catch (e) {} };
+        });
+      }
+      function gust() {
+        if (ctx.state === 'running' && state.playing) {
+          const n = 2 + Math.floor(Math.random() * 5);
+          let t = ctx.currentTime + 0.03;
+          for (let k = 0; k < n; k++) { strike(t, 0.16 + Math.random() * 0.2); t += 0.07 + Math.random() * 0.35; }
+        }
+        timer = setTimeout(gust, (5 + Math.random() * 16) * 1000);
+      }
+      timer = setTimeout(gust, 1200);
+      L.onKill.push(() => clearTimeout(timer));
+    },
+    white(L, P) {
+      wide(bufs.white, s => {
+        const lp = filt('lowpass', 9500, 0.5); P.push(lp); s.connect(lp); return lp;
+      }, L.gain, P);
+    }
+  };
+
+  function createLayer(def) {
+    const L = { id: def.id, trim: def.trim, built: false, parts: [], onKill: [], target: 0, td: 0 };
+    L.gain = ctx.createGain();
+    L.gain.gain.value = 0;
+    L.gain.connect(nodes.vol);
+    L.build = function () {
+      L.parts = [];
+      BUILD[def.id](L, L.parts);
+      L.built = true;
+    };
+    L.kill = function () {
+      L.onKill.forEach(fn => { try { fn(); } catch (e) {} });
+      L.onKill = [];
+      L.parts.forEach(p => {
+        try { if (p.stop) p.stop(); } catch (e) {}
+        try { p.disconnect(); } catch (e) {}
+      });
+      L.parts = []; L.built = false;
+    };
+    return L;
+  }
+
+  function ensureCtx() {
+    if (ctx) return true;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    ctx = new AC({ latencyHint: 'playback' });
+    bufs = { white: makeNoise('white'), pink: makeNoise('pink'), brown: makeNoise('brown'), drops: makeDrops() };
+    nodes = {
+      vol: ctx.createGain(), fade: ctx.createGain(), play: ctx.createGain(),
+      comp: ctx.createDynamicsCompressor(), an: ctx.createAnalyser()
+    };
+    nodes.vol.gain.value = volGain(state.vol);
+    nodes.fade.gain.value = 1;
+    nodes.play.gain.value = 0;
+    nodes.comp.threshold.value = -12;
+    nodes.comp.knee.value = 10;
+    nodes.comp.ratio.value = 12;
+    nodes.comp.attack.value = 0.003;
+    nodes.comp.release.value = 0.25;
+    nodes.an.fftSize = 2048;
+    nodes.an.smoothingTimeConstant = 0.82;
+    nodes.an.minDecibels = -85;
+    nodes.an.maxDecibels = -25;
+    nodes.vol.connect(nodes.fade);
+    nodes.fade.connect(nodes.play);
+    nodes.play.connect(nodes.comp);
+    nodes.comp.connect(nodes.an);
+    nodes.comp.connect(ctx.destination);
+    LAYERS.forEach(def => { layers[def.id] = createLayer(def); });
+    fdata = new Uint8Array(nodes.an.frequencyBinCount);
+    return true;
+  }
+
+  async function routeOut() {
+    if (routed) { try { await audioEl.play(); } catch (e) {} return; }
+    try {
+      if (!('srcObject' in audioEl) || !ctx.createMediaStreamDestination) return;
+      const dest = ctx.createMediaStreamDestination();
+      audioEl.srcObject = dest.stream;
+      await audioEl.play();
+      nodes.comp.connect(dest);
+      nodes.comp.disconnect(ctx.destination);
+      routed = true;
+    } catch (e) { /* keep the direct output */ }
+  }
+
+  function setLayer(id, v) {
+    const L = layers[id];
+    if (!L || !ctx) return;
+    L.target = v;
+    if (v > 0.001 && !L.built) L.build();
+    if (L.built) L.gain.gain.setTargetAtTime(Math.pow(v, 2.2) * L.trim, ctx.currentTime, 0.12);
+    clearTimeout(L.td);
+    if (v <= 0.001 && L.built) {
+      L.td = setTimeout(() => { if (L.target <= 0.001) L.kill(); }, 1500);
+    }
+  }
+
+  const dp = {};
+  LAYERS.forEach(l => {
+    dp[l.id] = {
+      p1: Math.random() * 6.283, p2: Math.random() * 6.283,
+      f1: 1 / (150 + Math.random() * 120), f2: 1 / (55 + Math.random() * 50)
+    };
+  });
+  function driftWave(id) {
+    const t = Date.now() / 1000, d = dp[id];
+    return 0.6 * Math.sin(6.283 * d.f1 * t + d.p1) + 0.4 * Math.sin(6.283 * d.f2 * t + d.p2);
+  }
+  function applyAll() {
+    if (!ctx) return;
+    LAYERS.forEach(l => {
+      const v = state.levels[l.id];
+      const eff = state.drift && v > 0.03 ? clamp(v * (1 + 0.2 * driftWave(l.id)), 0, 1) : v;
+      setLayer(l.id, eff);
+    });
+  }
+
+  /* ---------- transport ---------- */
+  let raf = 0, tickId = 0, tickN = 0, fdata = null;
+  const BANDS = 36;
+  const bandVals = new Float32Array(BANDS);
+
+  async function play() {
+    if (!ensureCtx()) { setStatus('This browser cannot play Web Audio.', true); return; }
+    try { await ctx.resume(); } catch (e) {}
+    await routeOut();
+    state.playing = true;
+    const t = ctx.currentTime, g = nodes.play.gain;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(1, t + 0.9);
+    applyAll();
+    if (state.timerMin && !state.timerEnd) startTimer(state.timerMin);
+    startLoops();
+    mediaSession();
+    renderTransport();
+  }
+
+  function pause(finished) {
+    if (!ctx || !state.playing) return;
+    state.playing = false;
+    stopLoops();
+    const t = ctx.currentTime, g = nodes.play.gain;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(0, t + 0.6);
+    state.timerEnd = null;
+    if (finished) { state.timerMin = 0; renderChips(); }
+    setTimeout(() => {
+      if (state.playing) return;
+      nodes.fade.gain.cancelScheduledValues(0);
+      nodes.fade.gain.value = 1;
+      try { ctx.suspend(); } catch (e) {}
+      try { audioEl.pause(); } catch (e) {}
+    }, 750);
+    bandVals.fill(0);
+    drawScope(false);
+    renderTransport(finished ? 'Timer finished. Sleep well.' : null);
+  }
+
+  function mediaSession() {
+    try {
+      if (!('mediaSession' in navigator)) return;
+      navigator.mediaSession.metadata = new MediaMetadata({ title: 'Soundscape', artist: 'Murmur' });
+      navigator.mediaSession.setActionHandler('play', () => { play(); });
+      navigator.mediaSession.setActionHandler('pause', () => { pause(); });
+    } catch (e) {}
+  }
+
+  function startLoops() {
+    stopLoops();
+    raf = requestAnimationFrame(frame);
+    tickId = setInterval(tick, 250);
+  }
+  function stopLoops() {
+    cancelAnimationFrame(raf); raf = 0;
+    clearInterval(tickId); tickId = 0;
+  }
+  function tick() {
+    tickN++;
+    if (state.drift && tickN % 2 === 0) applyAll();
+    if (state.timerEnd && Date.now() >= state.timerEnd) { pause(true); return; }
+    renderTimerLine();
+  }
+
+  /* ---------- sleep timer ---------- */
+  function clearFade() {
+    if (!ctx) return;
+    const t = ctx.currentTime, g = nodes.fade.gain;
+    g.cancelScheduledValues(t);
+    g.setTargetAtTime(1, t, 0.2);
+  }
+  function startTimer(min) {
+    state.timerEnd = Date.now() + min * 60000;
+    scheduleFade();
+  }
+  function scheduleFade() {
+    if (!ctx || !state.playing || !state.timerEnd) return;
+    const total = Math.max(0.2, (state.timerEnd - Date.now()) / 1000);
+    const fadeLen = Math.min(90, total);
+    state.fadeLen = Math.round(fadeLen);
+    const n = 128, curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) curve[i] = Math.pow(Math.cos((i / (n - 1)) * Math.PI / 2), 2);
+    const g = nodes.fade.gain, t = ctx.currentTime;
+    try {
+      g.cancelScheduledValues(t);
+      g.setValueAtTime(1, t);
+      g.setValueCurveAtTime(curve, t + Math.max(0.05, total - fadeLen), fadeLen);
+    } catch (e) {}
+  }
+  function setTimer(min) {
+    state.timerMin = min;
+    if (!min) {
+      state.timerEnd = null;
+      clearFade();
+    } else if (state.playing) {
+      startTimer(min);
+    } else {
+      state.timerEnd = null;
+    }
+    renderChips();
+    renderTimerLine();
+  }
+  function fmt(sec) {
+    sec = Math.max(0, Math.ceil(sec));
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    const mm = (h ? String(m).padStart(2, '0') : String(m)), ss = String(s).padStart(2, '0');
+    return (h ? h + ':' : '') + mm + ':' + ss;
+  }
+
+  /* ---------- scope ---------- */
+  const cv = $('#scope'), c2 = cv.getContext('2d');
+  let cw = 1, chh = 1, dpr = 1, colAccent = '#e9a95a', colRaise = '#1f2d2b', frameN = 0, lastDraw = 0;
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    colAccent = cs.getPropertyValue('--accent').trim() || colAccent;
+    colRaise = cs.getPropertyValue('--raise').trim() || colRaise;
+  }
+  function sizeCanvas() {
+    dpr = window.devicePixelRatio || 1;
+    const r = cv.getBoundingClientRect();
+    cw = Math.max(1, Math.round(r.width * dpr));
+    chh = Math.max(1, Math.round(r.height * dpr));
+    cv.width = cw; cv.height = chh;
+    readColors();
+    drawScope(state.playing);
+  }
+  function drawScope(on) {
+    c2.clearRect(0, 0, cw, chh);
+    const gap = 2 * dpr, bw = (cw - gap * (BANDS - 1)) / BANDS;
+    for (let i = 0; i < BANDS; i++) {
+      const v = on ? bandVals[i] : 0;
+      const h = Math.max(2 * dpr, v * chh);
+      c2.fillStyle = v > 0.03 ? colAccent : colRaise;
+      c2.fillRect(i * (bw + gap), chh - h, bw, h);
+    }
+  }
+  function frame(ts) {
+    raf = requestAnimationFrame(frame);
+    if (ts - lastDraw < 33) return;
+    lastDraw = ts;
+    if (frameN++ % 45 === 0) readColors();
+    nodes.an.getByteFrequencyData(fdata);
+    const nyq = ctx.sampleRate / 2, bins = fdata.length;
+    for (let i = 0; i < BANDS; i++) {
+      const f0 = 40 * Math.pow(300, i / BANDS), f1 = 40 * Math.pow(300, (i + 1) / BANDS);
+      const b0 = Math.floor(f0 / nyq * bins), b1 = Math.max(b0 + 1, Math.ceil(f1 / nyq * bins));
+      let m = 0;
+      for (let b = b0; b < b1 && b < bins; b++) m = Math.max(m, fdata[b]);
+      const v = Math.pow(m / 255, 1.5);
+      bandVals[i] = Math.max(v, bandVals[i] * 0.9);
+    }
+    drawScope(true);
+  }
+
+  /* ---------- UI: mixer ---------- */
+  const ICONS = {
+    rain: '<path d="M6.5 14.5H17a3.5 3.5 0 0 0 .4-6.97A5 5 0 0 0 7.7 7.9a3.4 3.4 0 0 0-1.2 6.6z"/><path d="M8.5 17.5l-1 2.5M12 17.5l-1 2.5M15.5 17.5l-1 2.5"/>',
+    thunder: '<path d="M13 3L5.5 13.5H11L10 21l8-11h-5.5L13 3z"/>',
+    wind: '<path d="M3 9h9.5a2.5 2.5 0 1 0-2.5-2.5"/><path d="M3 14h13a2.5 2.5 0 1 1-2.5 2.5"/><path d="M3 19h5"/>',
+    ocean: '<path d="M2 9c2.5-3 4.5-3 7 0s4.5 3 7 0 4-2 6 0"/><path d="M2 15c2.5-3 4.5-3 7 0s4.5 3 7 0 4-2 6 0"/>',
+    stream: '<path d="M8 3c4 2.5-3 5 1 8s-3 5.5 1 10"/><path d="M15 3c4 2.5-3 5 1 8s-3 5.5 1 10"/>',
+    fan: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="1.4"/><path d="M12 12Q9.5 6 13.5 4.5Q16 7.5 12 12z"/><path transform="rotate(90 12 12)" d="M12 12Q9.5 6 13.5 4.5Q16 7.5 12 12z"/><path transform="rotate(180 12 12)" d="M12 12Q9.5 6 13.5 4.5Q16 7.5 12 12z"/><path transform="rotate(270 12 12)" d="M12 12Q9.5 6 13.5 4.5Q16 7.5 12 12z"/>',
+    fire: '<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2.2-4.8.2 1.6 1 2.3 1.8 2.3C11.2 8.2 10.8 5.5 12 3z"/><path d="M12 20a2.5 2.5 0 0 1-2.5-2.5c0-1.6 1.5-2.6 2.5-4 1 1.4 2.5 2.4 2.5 4A2.5 2.5 0 0 1 12 20z"/>',
+    chimes: '<path d="M4 4.5h16"/><path d="M6.5 4.5V8M10 4.5V8M13.5 4.5V8M17 4.5V8"/><rect x="5.4" y="8" width="2.2" height="8" rx="1.1"/><rect x="8.9" y="8" width="2.2" height="11" rx="1.1"/><rect x="12.4" y="8" width="2.2" height="7" rx="1.1"/><rect x="15.9" y="8" width="2.2" height="10" rx="1.1"/>',
+    brown: '<path stroke-width="2.6" d="M5 20V4M9.5 20V9M14 20V13M18.5 20V16"/>',
+    pink: '<path stroke-width="2.6" d="M5 20V6M9.5 20V9M14 20V11M18.5 20V13"/>',
+    white: '<path stroke-width="2.6" d="M5 20V9M9.5 20V9M14 20V9M18.5 20V9"/>'
+  };
+
+  const mixer = $('#mixer');
+  function buildSurface() {
+    const wrap = document.createElement('div');
+    wrap.className = 'seg surf'; wrap.id = 'surf';
+    wrap.setAttribute('role', 'group'); wrap.setAttribute('aria-label', 'Rain surface');
+    SURFACES.forEach(k => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.dataset.surface = k; b.textContent = SURF[k].label;
+      b.setAttribute('aria-pressed', String(k === state.surface));
+      b.addEventListener('click', () => { setSurface(k); renderPresets(); });
+      wrap.append(b);
+    });
+    return wrap;
+  }
+  function setSurface(k) {
+    if (!SURF[k]) k = 'open';
+    state.surface = k;
+    document.querySelectorAll('#surf .chip').forEach(b => {
+      b.setAttribute('aria-pressed', String(b.dataset.surface === k));
+    });
+    if (ctx && layers.rain && layers.rain.built) applyRainSurface(layers.rain, false);
+  }
+  function buildChannel(l) {
+    const row = document.createElement('div');
+    row.className = 'ch'; row.id = 'ch-' + l.id;
+    const icw = document.createElement('div'); icw.className = 'ch-icon';
+    const ic = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    ic.setAttribute('viewBox', '0 0 24 24'); ic.setAttribute('aria-hidden', 'true');
+    ic.innerHTML = ICONS[l.id];
+    icw.append(ic);
+    const body = document.createElement('div'); body.className = 'ch-body';
+    const head = document.createElement('div'); head.className = 'ch-head';
+    const lab = document.createElement('label'); lab.htmlFor = 's-' + l.id; lab.textContent = l.name;
+    const val = document.createElement('span'); val.className = 'ch-val'; val.id = 'v-' + l.id; val.textContent = '0';
+    head.append(lab, val);
+    const input = document.createElement('input');
+    input.type = 'range'; input.id = 's-' + l.id; input.min = 0; input.max = 100; input.step = 1; input.value = 0;
+    const note = document.createElement('p'); note.className = 'ch-note'; note.textContent = l.note;
+    body.append(head, input);
+    if (l.id === 'rain') body.append(buildSurface());
+    body.append(note);
+    row.append(icw, body);
+    input.addEventListener('input', () => {
+      cancelAnim();
+      state.levels[l.id] = input.valueAsNumber / 100;
+      paintSlider(l.id);
+      if (ctx) applyAll();
+      renderPresets();
+    });
+    return row;
+  }
+  const layerById = Object.fromEntries(LAYERS.map(l => [l.id, l]));
+  GROUPS.forEach(g => {
+    const wrap = document.createElement('div');
+    wrap.className = 'grp';
+    wrap.setAttribute('role', 'group'); wrap.setAttribute('aria-label', g.title);
+    const t = document.createElement('p'); t.className = 'label grp-title'; t.textContent = g.title;
+    wrap.append(t);
+    g.ids.forEach(id => wrap.append(buildChannel(layerById[id])));
+    mixer.append(wrap);
+  });
+  function paintSlider(id) {
+    const input = $('#s-' + id), v = state.levels[id];
+    input.value = Math.round(v * 100);
+    input.style.setProperty('--p', Math.round(v * 100) + '%');
+    $('#v-' + id).textContent = String(Math.round(v * 100));
+    $('#ch-' + id).classList.toggle('on', v > 0.001);
+  }
+  function paintAll() { LAYERS.forEach(l => paintSlider(l.id)); }
+
+  const volEl = $('#vol');
+  function paintVol() {
+    volEl.value = Math.round(state.vol * 100);
+    volEl.style.setProperty('--p', Math.round(state.vol * 100) + '%');
+    $('#vol-val').textContent = String(Math.round(state.vol * 100));
+  }
+  volEl.addEventListener('input', () => {
+    state.vol = volEl.valueAsNumber / 100;
+    paintVol();
+    if (ctx) nodes.vol.gain.setTargetAtTime(volGain(state.vol), ctx.currentTime, 0.05);
+  });
+
+  const driftBtn = $('#drift');
+  driftBtn.addEventListener('click', () => {
+    setDrift(!state.drift);
+    renderPresets();
+  });
+  function setDrift(on) {
+    state.drift = !!on;
+    driftBtn.setAttribute('aria-checked', state.drift ? 'true' : 'false');
+    if (ctx) applyAll();
+  }
+
+  /* ---------- UI: transport ---------- */
+  function setStatus(text, isErr) {
+    const el = $('#status');
+    el.textContent = text;
+    el.className = isErr ? 'err' : '';
+  }
+  function renderTransport(msg) {
+    $('#icon-play').hidden = state.playing;
+    $('#icon-pause').hidden = !state.playing;
+    $('#play').setAttribute('aria-label', state.playing ? 'Pause' : 'Play');
+    setStatus(msg || (state.playing ? 'Playing' : 'Paused'));
+    renderTimerLine();
+  }
+  function renderChips() {
+    document.querySelectorAll('#timer-seg .chip').forEach(b => {
+      b.setAttribute('aria-pressed', String(+b.dataset.min === state.timerMin));
+    });
+  }
+  function renderTimerLine() {
+    const line = $('#timer-line'), st = $('#status-timer');
+    if (state.timerEnd && state.playing) {
+      const left = (state.timerEnd - Date.now()) / 1000;
+      line.textContent = fmt(left) + ' left. Volume fades over the last ' + state.fadeLen + ' seconds.';
+      st.textContent = fmt(left) + ' left';
+    } else if (state.timerMin) {
+      line.textContent = state.timerMin + ' minutes. The countdown starts when you press play.';
+      st.textContent = '';
+    } else {
+      line.textContent = 'Timer off.';
+      st.textContent = '';
+    }
+  }
+  $('#play').addEventListener('click', () => { state.playing ? pause() : play(); });
+  $('#timer-seg').addEventListener('click', e => {
+    const b = e.target.closest('.chip');
+    if (b) setTimer(+b.dataset.min);
+  });
+
+  /* ---------- presets ---------- */
+  let anim = 0;
+  function cancelAnim() { if (anim) { cancelAnimationFrame(anim); anim = 0; } }
+  function cleanLevels(o) {
+    const r = {};
+    LAYERS.forEach(l => {
+      const v = o ? +o[l.id] : 0;
+      r[l.id] = isFinite(v) ? clamp(v, 0, 1) : 0;
+    });
+    return r;
+  }
+  function loadMix(p, instant) {
+    cancelAnim();
+    const to = cleanLevels(p.levels);
+    setDrift(!!p.drift);
+    setSurface(p.surface || 'open');
+    if (instant) {
+      LAYERS.forEach(l => { state.levels[l.id] = to[l.id]; });
+      paintAll(); if (ctx) applyAll(); renderPresets();
+      return;
+    }
+    const from = Object.assign({}, state.levels), t0 = performance.now(), dur = 1200;
+    (function step(now) {
+      const k = clamp((now - t0) / dur, 0, 1), e = k * k * (3 - 2 * k);
+      LAYERS.forEach(l => { state.levels[l.id] = from[l.id] + (to[l.id] - from[l.id]) * e; });
+      paintAll(); if (ctx) applyAll();
+      if (k < 1) anim = requestAnimationFrame(step); else { anim = 0; renderPresets(); }
+    })(t0);
+  }
+  function mixSummary(levels, surface) {
+    const parts = LAYERS.map(l => [(l.id === 'rain' && SURF[surface] && surface !== 'open') ? 'Rain on ' + SURF[surface].short : l.name.replace(' noise', ''), Math.round((+levels[l.id] || 0) * 100)])
+      .filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    return parts.length ? parts.map(x => x[0] + ' ' + x[1]).join(' · ') : 'Silent';
+  }
+  function sameMix(p) {
+    const lv = cleanLevels(p.levels);
+    return LAYERS.every(l => Math.abs(lv[l.id] - state.levels[l.id]) < 0.015) &&
+      (lv.rain < 0.015 || (p.surface || 'open') === state.surface);
+  }
+  function presetRow(p, deletable) {
+    const row = document.createElement('div'); row.className = 'pr';
+    const load = document.createElement('button'); load.type = 'button'; load.className = 'load';
+    const name = document.createElement('span'); name.className = 'name';
+    const nm = document.createElement('span'); nm.textContent = p.name;
+    name.append(nm);
+    if (sameMix(p)) { const c = document.createElement('span'); c.className = 'cur'; c.textContent = 'Current'; name.append(c); load.setAttribute('aria-current', 'true'); }
+    const sum = document.createElement('span'); sum.className = 'sum'; sum.textContent = mixSummary(cleanLevels(p.levels), p.surface) + (p.drift ? ' · drift' : '');
+    load.append(name, sum);
+    load.addEventListener('click', () => loadMix(p, false));
+    row.append(load);
+    if (deletable) {
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'del';
+      const armed = state.armed === p.id;
+      del.textContent = armed ? 'Tap to confirm' : 'Delete';
+      if (armed) del.classList.add('armed');
+      del.setAttribute('aria-label', 'Delete ' + p.name);
+      del.addEventListener('click', () => {
+        if (state.armed === p.id) { state.armed = null; removePreset(p); }
+        else { state.armed = p.id; renderPresets(); setTimeout(() => { if (state.armed === p.id) { state.armed = null; renderPresets(); } }, 3000); }
+      });
+      row.append(del);
+    }
+    return row;
+  }
+  function renderPresets() {
+    const b = $('#builtin'); b.replaceChildren();
+    BUILTIN.forEach(p => b.append(presetRow(p, false)));
+    const s = $('#saved'); s.replaceChildren();
+    if (!state.saved.length) {
+      const e = document.createElement('p'); e.className = 'empty';
+      e.textContent = 'Nothing saved yet. Set a mix you like, name it below and save it.';
+      s.append(e);
+    } else {
+      state.saved.forEach(p => s.append(presetRow(p, true)));
+    }
+    $('#save-note').textContent = state.mode === 'db'
+      ? 'Saved with this page, so your mixes follow you across devices.'
+      : 'Saved on this device only.';
+  }
+
+  /* ---------- preset storage ---------- */
+  const LS = 'murmur.presets.v1';
+  function lsRead() { try { const a = JSON.parse(localStorage.getItem(LS) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function lsWrite(a) { try { localStorage.setItem(LS, JSON.stringify(a)); } catch (e) {} }
+  let dbRef = null;
+  state.saved = lsRead();
+
+  async function savePreset(name) {
+    const p = {
+      name: name,
+      levels: Object.fromEntries(LAYERS.map(l => [l.id, Math.round(state.levels[l.id] * 100) / 100])),
+      drift: state.drift,
+      surface: state.surface,
+      createdAt: Date.now()
+    };
+    const id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    if (state.mode === 'db' && dbRef) {
+      try { await dbRef.collection('presets').doc(id).set(p); return true; }
+      catch (e) { $('#save-note').textContent = 'Could not save this mix. Saving is not available for this view.'; return false; }
+    }
+    state.saved = [Object.assign({ id: id }, p)].concat(state.saved);
+    lsWrite(state.saved);
+    renderPresets();
+    return true;
+  }
+  async function removePreset(p) {
+    if (state.mode === 'db' && dbRef) {
+      try { await dbRef.collection('presets').doc(p.id).delete(); } catch (e) {}
+      return;
+    }
+    state.saved = state.saved.filter(x => x.id !== p.id);
+    lsWrite(state.saved);
+    renderPresets();
+  }
+  $('#save-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const input = $('#save-name');
+    let name = input.value.trim();
+    if (!name) name = 'Mix ' + (state.saved.length + 1);
+    if (await savePreset(name.slice(0, 40))) input.value = '';
+  });
+
+  (async function connectDb() {
+    try {
+      if (!window.claude || !window.claude.use) return;
+      const db = await window.claude.use('db');
+      if (!db) return;
+      dbRef = db;
+      db.collection('presets').orderBy('createdAt', 'desc').limit(200).onSnapshot(snap => {
+        state.mode = 'db';
+        state.saved = snap.docs.map(d => {
+          const v = d.data() || {};
+          return { id: d.id, name: String(v.name || 'Untitled').slice(0, 40), levels: cleanLevels(v.levels), drift: !!v.drift, surface: SURF[v.surface] ? v.surface : 'open' };
+        });
+        renderPresets();
+      }, () => {
+        state.mode = 'local';
+        state.saved = lsRead();
+        renderPresets();
+      });
+    } catch (e) { /* stay on local storage */ }
+  })();
+
+  /* ---------- boot ---------- */
+  loadMix(BUILTIN[0], true);
+  paintVol();
+  renderChips();
+  renderTransport();
+  renderPresets();
+  sizeCanvas();
+  window.addEventListener('resize', sizeCanvas);
+})();
+</script>
+</body>
+</html>
