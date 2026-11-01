@@ -1081,8 +1081,8 @@ input[type=text]::placeholder{color:var(--muted)}
     el.className = isErr ? 'err' : '';
   }
   function renderTransport(msg) {
-    $('#icon-play').hidden = state.playing;
-    $('#icon-pause').hidden = !state.playing;
+    $('#icon-play').toggleAttribute('hidden', state.playing);
+    $('#icon-pause').toggleAttribute('hidden', !state.playing);
     $('#play').setAttribute('aria-label', state.playing ? 'Pause' : 'Play');
     setStatus(msg || (state.playing ? 'Playing' : 'Paused'));
     renderTimerLine();
