@@ -334,7 +334,31 @@ $('#save-form').addEventListener('submit', async e => {
   } catch (e) { /* stay on local storage */ }
 })();
 
+/* ---------- UI: panel ---------- */
+const panel = $('#panel'), panelBtn = $('#panel-toggle'), PANEL_LS = 'murmur.panel';
+const wideQ = window.matchMedia('(min-width:720px)');
+function setPanel(open, remember) {
+  panel.classList.toggle('open', open);
+  panel.inert = !open;
+  panelBtn.setAttribute('aria-expanded', String(open));
+  panelBtn.setAttribute('aria-label', open ? 'Hide mixer' : 'Show mixer');
+  if (remember) { try { localStorage.setItem(PANEL_LS, open ? '1' : '0'); } catch (e) {} }
+  insetScene();
+}
+function insetScene() {
+  const open = panel.classList.contains('open'), r = panel.getBoundingClientRect();
+  scene.setInset(open && wideQ.matches ? r.width : 0, open && !wideQ.matches ? r.height : 0);
+}
+panelBtn.addEventListener('click', () => setPanel(!panel.classList.contains('open'), true));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && panel.classList.contains('open')) { setPanel(false, true); panelBtn.focus(); }
+});
+window.addEventListener('resize', insetScene);
+
 /* ---------- boot ---------- */
+let panelPref = null;
+try { panelPref = localStorage.getItem(PANEL_LS); } catch (e) {}
+setPanel(panelPref ? panelPref === '1' : wideQ.matches, false);
 loadMix(BUILTIN[0], true);
 paintVol();
 renderChips();

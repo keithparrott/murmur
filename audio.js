@@ -270,6 +270,7 @@ const BUILD = {
         if (pn) { g.connect(pn); pn.connect(L.gain); } else { g.connect(L.gain); }
         s.onended = () => { try { s.disconnect(); g.disconnect(); if (pn) pn.disconnect(); } catch (e) {} };
         s.start();
+        scene.event('thunder', g.gain.value);
       }
       timer = setTimeout(boom, (22 + Math.random() * 50) * 1000);
     }
@@ -357,7 +358,11 @@ const BUILD = {
       if (ctx.state === 'running' && state.playing) {
         const n = 2 + Math.floor(Math.random() * 5);
         let t = ctx.currentTime + 0.03;
-        for (let k = 0; k < n; k++) { strike(t, 0.16 + Math.random() * 0.2); t += 0.07 + Math.random() * 0.35; }
+        for (let k = 0; k < n; k++) {
+          strike(t, 0.16 + Math.random() * 0.2);
+          scene.event('chime', t - ctx.currentTime);
+          t += 0.07 + Math.random() * 0.35;
+        }
       }
       timer = setTimeout(gust, (5 + Math.random() * 16) * 1000);
     }
@@ -461,13 +466,13 @@ function driftWave(id) {
   const t = Date.now() / 1000, d = dp[id];
   return 0.6 * Math.sin(6.283 * d.f1 * t + d.p1) + 0.4 * Math.sin(6.283 * d.f2 * t + d.p2);
 }
+function effLevel(id) {
+  const v = state.levels[id];
+  return state.drift && v > 0.03 ? clamp(v * (1 + 0.2 * driftWave(id)), 0, 1) : v;
+}
 function applyAll() {
   if (!ctx) return;
-  LAYERS.forEach(l => {
-    const v = state.levels[l.id];
-    const eff = state.drift && v > 0.03 ? clamp(v * (1 + 0.2 * driftWave(l.id)), 0, 1) : v;
-    setLayer(l.id, eff);
-  });
+  LAYERS.forEach(l => setLayer(l.id, effLevel(l.id)));
 }
 
 /* ---------- transport ---------- */
@@ -480,6 +485,7 @@ async function play() {
   try { await ctx.resume(); } catch (e) {}
   await routeOut();
   state.playing = true;
+  state.slept = false;
   const t = ctx.currentTime, g = nodes.play.gain;
   g.cancelScheduledValues(t);
   g.setValueAtTime(g.value, t);
@@ -500,6 +506,7 @@ function pause(finished) {
   g.setValueAtTime(g.value, t);
   g.linearRampToValueAtTime(0, t + 0.6);
   state.timerEnd = null;
+  state.slept = !!finished;
   if (finished) { state.timerMin = 0; renderChips(); }
   setTimeout(() => {
     if (state.playing) return;

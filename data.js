@@ -58,5 +58,6 @@ const state = {
   fadeLen: 90,
   saved: [],
   mode: 'local',
-  armed: null
+  armed: null,
+  slept: false
 };

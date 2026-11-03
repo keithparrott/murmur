@@ -6,6 +6,7 @@ A soundscape mixer for sleep and focus. Every sound is synthesized live in the b
 - Mixer with per-sound levels, a master volume and an optional slow "drift" in levels.
 - Saved presets, stored in the browser's local storage.
 - Sleep timer that fades out over the last 90 seconds.
+- A pixel-art scene of a cabin on a bluff above the sea that reacts to the mix: rain, lightning, swaying trees, surf, the creek, chimney smoke, the fan, chimes and fog. It follows your clock from dawn to night; add `?hour=21` to the URL to preview another time.
 
 ## Run it
 

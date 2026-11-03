@@ -14,7 +14,18 @@
 <body>
 <audio id="out" playsinline hidden></audio>
 
-<main class="app">
+<canvas id="scene" aria-hidden="true"></canvas>
+<div class="hud">
+  <button class="play" id="play" type="button" aria-label="Play">
+    <svg id="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>
+    <svg id="icon-pause" viewBox="0 0 24 24" aria-hidden="true" hidden><rect x="5.5" y="4" width="4.5" height="16" rx="1"/><rect x="14" y="4" width="4.5" height="16" rx="1"/></svg>
+  </button>
+  <button class="toggle" id="panel-toggle" type="button" aria-controls="panel" aria-expanded="false" aria-label="Show mixer">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v16M12 4v16M19 4v16"/><rect x="3" y="13" width="4" height="3" rx="1"/><rect x="10" y="7" width="4" height="3" rx="1"/><rect x="17" y="11" width="4" height="3" rx="1"/></svg>
+  </button>
+</div>
+
+<aside class="panel app" id="panel" aria-label="Mixer and settings" inert>
   <header>
     <h1>Murmur</h1>
     <p class="tagline">Mix rain, thunder, wind, water, fire and noise. Every sound is generated live as you listen, so nothing repeats.</p>
@@ -24,10 +35,6 @@
     <div class="col">
       <section class="transport" aria-label="Playback">
         <div class="t-row">
-          <button class="play" id="play" type="button" aria-label="Play">
-            <svg id="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>
-            <svg id="icon-pause" viewBox="0 0 24 24" aria-hidden="true" hidden><rect x="5.5" y="4" width="4.5" height="16" rx="1"/><rect x="14" y="4" width="4.5" height="16" rx="1"/></svg>
-          </button>
           <canvas id="scope" aria-hidden="true"></canvas>
         </div>
         <div class="status" aria-live="polite"><span id="status">Paused</span><span id="status-timer"></span></div>
@@ -83,10 +90,12 @@
   </div>
 
   <p class="foot">Sounds are synthesized on this device with the Web Audio API, so there are no audio files and no loop points. Some phones pause web audio when the screen locks, so test your sleep mix once before relying on it.</p>
-</main>
+</aside>
 
 <script src="data.js"></script>
 <script src="audio.js"></script>
+<script src="scene-art.js"></script>
+<script src="scene.js"></script>
 <script src="ui.js"></script>
 </body>
 </html>

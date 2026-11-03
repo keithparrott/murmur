@@ -4,7 +4,7 @@ body{margin:0}
 img{max-width:100%}
 [hidden]{display:none!important}
 
-/* Layout: phone-first single column (transport, mixer, presets, timer). From 880px the mixer sits left and presets with the timer sit right. Dark first because it is used in bed; amber accent because it is a low-blue lamp colour. */
+/* Layout: the pixel scene fills the window behind everything. Play and the panel toggle float top left. The controls live in a panel that slides up from the bottom on phones and in from the right from 720px. Dark first because it is used in bed; amber accent because it is a low-blue lamp colour. */
 :root{
   --bg:#0c1312;
   --surface:#131c1b;
@@ -53,12 +53,38 @@ body{
   font-family:var(--f-body);
   font-size:15px;
   line-height:1.5;
-  padding-inline:16px;
-  padding-block:22px 56px;
+  height:100vh;
+  overflow:hidden;
 }
-.app{max-width:1000px;margin-inline:auto;display:grid;gap:28px}
+
+/* scene and floating controls */
+#scene{position:fixed;left:0;top:0;display:block;image-rendering:crisp-edges;image-rendering:pixelated;transition:transform .32s cubic-bezier(.2,.7,.2,1)}
+.hud{position:fixed;z-index:3;top:calc(14px + env(safe-area-inset-top,0px));left:16px;display:flex;gap:10px;align-items:center}
+.toggle{
+  width:52px;height:52px;flex:none;border-radius:50%;
+  background:var(--surface);color:var(--fg);border:1px solid var(--line);
+  display:grid;place-items:center;cursor:pointer;
+}
+.toggle svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.toggle[aria-expanded="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+/* panel: bottom sheet on phones, right-hand drawer from 720px */
+.panel{
+  position:fixed;z-index:2;left:0;right:0;bottom:0;max-height:62vh;
+  overflow-y:auto;overscroll-behavior:contain;
+  background:var(--bg);border-top:1px solid var(--line);border-radius:16px 16px 0 0;
+  padding:22px 16px calc(40px + env(safe-area-inset-bottom,0px));
+  transform:translateY(100%);
+  transition:transform .32s cubic-bezier(.2,.7,.2,1),visibility 0s .32s;
+  visibility:hidden;
+}
+.panel.open{transform:none;visibility:visible;transition:transform .32s cubic-bezier(.2,.7,.2,1)}
+@media (min-width:720px){
+  .panel{left:auto;top:0;width:min(440px,100vw);max-height:none;border-top:0;border-left:1px solid var(--line);border-radius:0;padding:24px 24px 48px;transform:translateX(100%)}
+}
+.app{display:grid;gap:28px;align-content:start}
 header{display:grid;gap:8px}
-h1{font:600 clamp(2.5rem,10vw,3.8rem)/1 var(--f-display);letter-spacing:-.035em;margin:0}
+h1{font:600 2.4rem/1 var(--f-display);letter-spacing:-.035em;margin:0}
 .tagline{margin:0;color:var(--muted);max-width:46ch;text-wrap:balance}
 h2.label,.label{
   font:500 11px/1.2 var(--f-mono);
@@ -69,24 +95,21 @@ h2.label,.label{
 }
 .cols{display:grid;gap:32px;grid-template-columns:minmax(0,1fr)}
 .col{display:grid;gap:28px;min-width:0;align-content:start}
-@media (min-width:880px){
-  .cols{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:56px;align-items:start}
-}
 .sec{display:grid;gap:12px;min-width:0}
 
 /* transport */
 .transport{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:14px}
 .t-row{display:flex;align-items:center;gap:16px}
 .play{
-  width:68px;height:68px;flex:none;border-radius:50%;border:0;
+  width:60px;height:60px;flex:none;border-radius:50%;border:0;
   background:var(--accent);color:var(--accent-ink);
   display:grid;place-items:center;cursor:pointer;
 }
 .play svg{width:26px;height:26px;fill:currentColor}
-.play:focus-visible,.chip:focus-visible,.btn:focus-visible,.load:focus-visible,.del:focus-visible,.switch:focus-visible,input[type=text]:focus-visible{
+.play:focus-visible,.toggle:focus-visible,.chip:focus-visible,.btn:focus-visible,.load:focus-visible,.del:focus-visible,.switch:focus-visible,input[type=text]:focus-visible{
   outline:2px solid var(--accent);outline-offset:3px;
 }
-#scope{flex:1;min-width:0;width:100%;height:68px;display:block}
+#scope{flex:1;min-width:0;width:100%;height:56px;display:block}
 .status{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font:400 12px/1.4 var(--f-mono);color:var(--muted)}
 .vol{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px}
 .vol .val{font:500 13px var(--f-mono);font-variant-numeric:tabular-nums;min-width:2.5ch;text-align:right}
