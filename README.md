@@ -9,7 +9,7 @@ A soundscape mixer for sleep and focus. Every sound is synthesized live in the b
 
 ## Run it
 
-It is one static file. Open `index.html` in a browser, or serve the folder:
+It is a static folder with no build step. Open `index.html` in a browser, or serve the folder:
 
 ```sh
 python3 -m http.server 8000
