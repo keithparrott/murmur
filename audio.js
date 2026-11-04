@@ -172,7 +172,7 @@ function makeBubbles() {
   const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
   const blip = (start, amp) => {
     const f0 = 380 * Math.pow(3, Math.random()), dur = (1.5 + Math.random() * 1.5) / f0;
-    const len = Math.floor(sr * dur * 5), rise = 0.04 + Math.random() * 0.2;
+    const len = Math.floor(sr * dur * 5), rise = Math.random() * 0.06;
     const r = Math.exp(-1 / (dur * sr)), ex = Math.floor(sr * 0.003);
     const norm = 2 * (1 - r) * Math.sin(6.2832 * f0 / sr) * amp;
     let y1 = 0, y2 = 0, e = 0;
@@ -213,7 +213,7 @@ function makeBrook() {
   const voices = [
     { mod: 14, base: 500, depth: 400, amp: 1 },
     { mod: 20, base: 1000, depth: 800, amp: 1.6 },
-    { mod: 26, base: 2100, depth: 1300, amp: 0.9 }
+    { mod: 26, base: 1400, depth: 700, amp: 0.6 }
   ];
   voices.forEach(v => {
     const k = lpk(v.mod);
@@ -345,20 +345,20 @@ const BUILD = {
     if (!bufs.bubbles) bufs.bubbles = makeBubbles();
     if (!bufs.brook) bufs.brook = makeBrook();
     wide(bufs.brook, s => {
-      const hp = filt('highpass', 180, 0.6), g = ctx.createGain();
-      g.gain.value = 1; P.push(hp, g);
+      const hp = filt('highpass', 180, 0.6), lp = filt('lowpass', 3200, 0.5), g = ctx.createGain();
+      g.gain.value = 1; P.push(hp, lp, g);
       lfo(0.04 + Math.random() * 0.04, 0.15, g.gain, P);
-      s.connect(hp); hp.connect(g); return g;
+      s.connect(hp); hp.connect(lp); lp.connect(g); return g;
     }, L.gain, P);
     wide(bufs.pink, s => {
-      const hp = filt('highpass', 900, 0.5), bp = filt('bandpass', 2600, 0.8), g = ctx.createGain();
-      g.gain.value = 0.3; P.push(hp, bp, g);
-      lfo(0.05 + Math.random() * 0.05, 500, bp.frequency, P);
+      const hp = filt('highpass', 700, 0.5), bp = filt('bandpass', 1800, 0.8), g = ctx.createGain();
+      g.gain.value = 0.24; P.push(hp, bp, g);
+      lfo(0.05 + Math.random() * 0.05, 350, bp.frequency, P);
       lfo(0.11 + Math.random() * 0.1, 0.1, g.gain, P);
       s.connect(hp); hp.connect(bp); bp.connect(g); return g;
     }, L.gain, P);
     wide(bufs.bubbles, s => {
-      const lp = filt('lowpass', 2400, 0.5), g = ctx.createGain();
+      const lp = filt('lowpass', 1500, 0.5), g = ctx.createGain();
       g.gain.value = 0.38; P.push(lp, g);
       s.connect(lp); lp.connect(g); return g;
     }, L.gain, P);
