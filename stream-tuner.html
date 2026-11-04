@@ -100,29 +100,6 @@ const T_GROUPS = [
     { path: 'trim', label: 'Trim', min: 0.3, max: 6, step: 0.05, hint: 'Overall loudness of the Stream sound in the app.', fmt: v => v.toFixed(2) },
     { path: 'width', label: 'Stereo width', min: 0, max: 1, step: 0.01, hint: '0 is mono in the middle, 1 is hard left and right.', fmt: v => v.toFixed(2) }
   ] },
-  { id: 'gurgle', title: 'Gurgle', what: 'The churning body of the water: noise split into bands that surge in and out.', controls: [
-    { path: 'gurgle.level', label: 'Level', min: 0, max: 3, step: 0.01, hint: 'How loud the gurgle is.', fmt: v => v.toFixed(2) },
-    { sub: 'Bands' },
-    { path: 'gurgle.bands', label: 'Number of bands', min: 1, max: 10, step: 1, buf: 'brook', hint: 'Fewer is sparser and more distinct; more is a fuller rush.', fmt: v => String(Math.round(v)) },
-    { path: 'gurgle.low', label: 'Lowest band', min: 120, max: 2000, log: true, buf: 'brook', hint: 'Pitch of the lowest band. Lower is deeper and heavier.', fmt: hz },
-    { path: 'gurgle.high', label: 'Highest band', min: 400, max: 9000, log: true, buf: 'brook', hint: 'Pitch of the highest band. Higher is brighter and splashier.', fmt: hz },
-    { path: 'gurgle.jitter', label: 'Band placement randomness', min: 0, max: 0.5, step: 0.01, buf: 'brook', hint: 'How far each band strays from even spacing.', fmt: pct },
-    { path: 'gurgle.q', label: 'Band sharpness', min: 0.5, max: 40, log: true, buf: 'brook', hint: 'Low is soft whooshing noise; high is ringing, tonal, and can sound like a voice.', fmt: v => v.toFixed(1) },
-    { path: 'gurgle.tilt', label: 'Treble tilt', min: -0.6, max: 1.2, step: 0.01, buf: 'brook', hint: 'Above 0 makes the higher bands quieter; below 0 makes them louder.', fmt: v => v.toFixed(2) },
-    { sub: 'Pitch wobble' },
-    { path: 'gurgle.drift', label: 'Wobble amount', min: 0, max: 0.8, step: 0.01, buf: 'brook', hint: 'How far each band’s pitch wanders. A lot sounds like gargling.', fmt: pct },
-    { path: 'gurgle.driftMin', label: 'Wobble speed, slowest', min: 0.3, max: 40, log: true, buf: 'brook', hint: 'Each band picks a wobble speed between slowest and fastest.', fmt: perSec },
-    { path: 'gurgle.driftMax', label: 'Wobble speed, fastest', min: 0.3, max: 40, log: true, buf: 'brook', fmt: perSec },
-    { sub: 'Surges' },
-    { path: 'gurgle.surgeMin', label: 'Surge speed, slowest', min: 0.3, max: 30, log: true, buf: 'brook', hint: 'How often each band swells in and out.', fmt: perSec },
-    { path: 'gurgle.surgeMax', label: 'Surge speed, fastest', min: 0.3, max: 30, log: true, buf: 'brook', fmt: perSec },
-    { path: 'gurgle.floor', label: 'Surge depth', min: -1, max: 1.5, step: 0.01, buf: 'brook', hint: 'Lower leaves silent gaps between surges; higher keeps it flowing steadily.', fmt: v => v.toFixed(2) },
-    { path: 'gurgle.shape', label: 'Surge punch', min: 1, max: 6, step: 0.1, buf: 'brook', hint: 'Higher makes each surge burst out sharper above the rest.', fmt: v => v.toFixed(1) },
-    { sub: 'Tone and movement' },
-    { path: 'gurgle.hp', label: 'Low cut', min: 20, max: 1500, log: true, hint: 'Removes rumble below this pitch.', fmt: hz },
-    { path: 'gurgle.lp', label: 'High cut', min: 800, max: 16000, log: true, hint: 'Removes brightness above this pitch.', fmt: hz },
-    { path: 'gurgle.swell', label: 'Slow swell', min: 0, max: 0.9, step: 0.01, hint: 'A slow rise and fall in loudness every 12 to 25 seconds.', fmt: pct }
-  ] },
   { id: 'bubbles', title: 'Bubbles', what: 'Small pitched plips. Many quiet ones blend into a trickle; few loud ones sound like a pot boiling.', controls: [
     { path: 'bubbles.level', label: 'Level', min: 0, max: 2, step: 0.01, hint: 'How loud the bubbles are.', fmt: v => v.toFixed(2) },
     { sub: 'How many' },
@@ -160,7 +137,7 @@ function cycles(v) { return v.toFixed(1) + ' cycles'; }
 /* ---------- settings model ---------- */
 const tCur = JSON.parse(JSON.stringify(T_DEFAULTS));
 const tUi = { slider: 0.7, volume: 0.7 };
-const tMute = { gurgle: false, bubbles: false, hiss: false };
+const tMute = { bubbles: false, hiss: false };
 let tSolo = null;
 
 function tGet(path) {
@@ -183,22 +160,20 @@ const T_ALL = T_GROUPS.flatMap(g => g.controls.filter(c => c.path));
 function tPush() {
   const pair = (o, a, b) => { if (o[a] > o[b]) { const t = o[a]; o[a] = o[b]; o[b] = t; } };
   STREAM.width = tCur.width;
-  for (const k of ['gurgle', 'bubbles', 'hiss']) {
+  for (const k of ['bubbles', 'hiss']) {
     Object.assign(STREAM[k], tCur[k]);
     const silent = tSolo ? tSolo !== k : tMute[k];
     if (silent) STREAM[k].level = 0;
   }
-  pair(STREAM.gurgle, 'driftMin', 'driftMax'); pair(STREAM.gurgle, 'surgeMin', 'surgeMax');
-  pair(STREAM.gurgle, 'low', 'high'); pair(STREAM.bubbles, 'low', 'high');
+  pair(STREAM.bubbles, 'low', 'high');
   pair(STREAM.bubbles, 'ringMin', 'ringMax'); pair(STREAM.bubbles, 'clusterMin', 'clusterMax');
   STREAM.bubbles.clusterMin = Math.round(STREAM.bubbles.clusterMin);
   STREAM.bubbles.clusterMax = Math.round(STREAM.bubbles.clusterMax);
-  STREAM.gurgle.bands = Math.round(STREAM.gurgle.bands);
 }
 
 /* ---------- audio ---------- */
 let tLive = null, tTimer = 0, tStarted = false, tOn = false;
-const tBufKey = { brook: '', bubbles: '' };
+const tBufKey = { bubbles: '' };
 const keyFor = (grp) => JSON.stringify(T_ALL.filter(c => c.buf === grp).map(c => STREAM[c.path.split('.')[0]][c.path.split('.')[1]]));
 
 function tLayerGain() { return Math.pow(tUi.slider, 2.2) * tCur.trim; }
@@ -214,11 +189,10 @@ function tStart() {
 function tRebuild() {
   if (!tStarted) return;
   tPush();
-  const nb = keyFor('brook'), nu = keyFor('bubbles');
+  const nu = keyFor('bubbles');
   const remake = [];
-  if (nb !== tBufKey.brook) { bufs.brook = null; remake.push('gurgle'); }
   if (nu !== tBufKey.bubbles) { bufs.bubbles = null; remake.push('bubbles'); }
-  status(remake.length ? 'Rebuilding ' + remake.join(' and ') + '…' : 'Updating…', true);
+  status(remake.length ? 'Rebuilding bubbles…' : 'Updating…', true);
   // let the status paint before the (blocking) buffer generation
   setTimeout(() => {
     const t0 = performance.now();
@@ -226,7 +200,7 @@ function tRebuild() {
     L.gain.gain.value = 0;
     L.gain.connect(nodes.vol);
     BUILD.stream(L, L.parts);
-    tBufKey.brook = nb; tBufKey.bubbles = nu;
+    tBufKey.bubbles = nu;
     const now = ctx.currentTime;
     L.gain.gain.setTargetAtTime(tOn ? tLayerGain() : 0, now, 0.12);
     const old = tLive;
@@ -398,7 +372,7 @@ function renderOut() {
     if (Math.abs(v - d) > 1e-9) lines.push('  ' + c.path + ': ' + round(v) + '   (was ' + round(d) + ')');
   });
   const full = { trim: round(tCur.trim), width: round(tCur.width) };
-  for (const k of ['gurgle', 'bubbles', 'hiss']) { full[k] = {}; for (const p in tCur[k]) full[k][p] = round(tCur[k][p]); }
+  for (const k of ['bubbles', 'hiss']) { full[k] = {}; for (const p in tCur[k]) full[k][p] = round(tCur[k][p]); }
   ta.value = 'Murmur stream settings\n' +
     (lines.length ? 'Changed:\n' + lines.join('\n') : 'Changed: nothing, same as the app') +
     '\n\nListened at: Stream slider ' + tUi.slider.toFixed(2) + ', master volume ' + tUi.volume.toFixed(2) +

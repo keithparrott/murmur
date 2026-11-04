@@ -165,9 +165,9 @@ function makeCrackle() {
   return buf;
 }
 
-/* Bubbles: a resonator rung by a soft burst of noise that dies within a few
-   cycles, so each one is a short plip rather than a ping. Many small, quiet
-   ones overlap into a trickle; the buffer is scaled by its peak. */
+/* Bubbles: a resonator rung by a short burst of noise that dies within a few
+   cycles, so each one is a plip rather than a ping. Settings come from
+   STREAM.bubbles; the buffer is scaled by its peak. */
 function makeBubbles() {
   const B = STREAM.bubbles, sr = ctx.sampleRate, L = Math.floor(sr * 20);
   const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
@@ -197,64 +197,6 @@ function makeBubbles() {
   for (let i = 0; i < L; i++) pk = Math.max(pk, Math.abs(d[i]));
   const g = 0.9 / (pk || 1);
   for (let i = 0; i < L; i++) d[i] *= g;
-  return buf;
-}
-
-/* Babbling water: noise split into a few bands from about 450 Hz to
-   3.6 kHz. Each band drifts a little in pitch and surges in and out quickly
-   on its own, so the water churns without any one resonance sweeping like
-   a voice. */
-function makeBrook() {
-  const G = STREAM.gurgle, sr = ctx.sampleRate, L = Math.floor(sr * 24), X = Math.floor(sr * 0.5);
-  const raw = new Float32Array(L + X), n = raw.length;
-  const smooth = (fc) => {
-    const w = 2 * Math.PI * fc / sr, al = Math.sin(w) / Math.SQRT2, c = Math.cos(w), a0 = 1 + al;
-    const b0 = (1 - c) / 2 / a0, b1 = (1 - c) / a0, a1 = -2 * c / a0, a2 = (1 - al) / a0;
-    const out = new Float32Array(n);
-    let x1 = 0, x2 = 0, y1 = 0, y2 = 0, s2 = 0;
-    for (let i = 0; i < n; i++) {
-      const x = Math.random() * 2 - 1, y = b0 * x + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
-      x2 = x1; x1 = x; y2 = y1; y1 = y; out[i] = y; s2 += y * y;
-    }
-    const k = 1 / (Math.sqrt(s2 / n) || 1);
-    for (let i = 0; i < n; i++) out[i] *= k;
-    return out;
-  };
-  const nb = Math.max(1, Math.round(G.bands));
-  for (let v = 0; v < nb; v++) {
-    const at = nb > 1 ? v / (nb - 1) : 0.5;
-    const base = G.low * Math.pow(G.high / G.low, at) * (1 - G.jitter + Math.random() * 2 * G.jitter);
-    const amp = Math.pow(G.low / base, G.tilt), Q = G.q;
-    const wob = smooth(G.driftMin + Math.random() * (G.driftMax - G.driftMin));
-    const env = smooth(G.surgeMin + Math.random() * (G.surgeMax - G.surgeMin));
-    let x1 = 0, x2 = 0, y1 = 0, y2 = 0, b0 = 0, a1 = 0, a2 = 0;
-    for (let i = 0; i < n; i++) {
-      if ((i & 7) === 0) {
-        const w = 2 * Math.PI * base * Math.max(0.2, 1 + G.drift * wob[i]) / sr, al = Math.sin(w) / (2 * Q), a0 = 1 + al;
-        b0 = al / a0; a1 = -2 * Math.cos(w) / a0; a2 = (1 - al) / a0;
-      }
-      const x = Math.random() * 2 - 1, y = b0 * x - b0 * x2 - a1 * y1 - a2 * y2;
-      x2 = x1; x1 = x; y2 = y1; y1 = y;
-      const e = Math.max(0, G.floor + env[i]);
-      raw[i] += y * Math.pow(e, G.shape) * amp;
-    }
-  }
-  const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
-  for (let i = 0; i < L; i++) {
-    if (i < X) {
-      const a = (i / X) * Math.PI / 2;
-      d[i] = raw[i] * Math.sin(a) + raw[L + i] * Math.cos(a);
-    } else {
-      d[i] = raw[i];
-    }
-  }
-  let s = 0;
-  for (let i = 0; i < L; i++) s += d[i] * d[i];
-  const g = 0.05 / (Math.sqrt(s / L) || 1);
-  for (let i = 0; i < L; i++) {
-    const v = d[i] * g, m = Math.abs(v);
-    d[i] = m > 0.7 ? Math.sign(v) * (0.7 + 0.25 * Math.tanh((m - 0.7) / 0.25)) : v;
-  }
   return buf;
 }
 
@@ -348,15 +290,8 @@ const BUILD = {
     L.onKill.push(() => clearTimeout(timer));
   },
   stream(L, P) {
-    const G = STREAM.gurgle, B = STREAM.bubbles, H = STREAM.hiss, W = STREAM.width;
+    const B = STREAM.bubbles, H = STREAM.hiss, W = STREAM.width;
     if (!bufs.bubbles) bufs.bubbles = makeBubbles();
-    if (!bufs.brook) bufs.brook = makeBrook();
-    wide(bufs.brook, s => {
-      const hp = filt('highpass', G.hp, 0.6), lp = filt('lowpass', G.lp, 0.5), g = ctx.createGain();
-      g.gain.value = G.level; P.push(hp, lp, g);
-      lfo(0.04 + Math.random() * 0.04, G.swell * G.level, g.gain, P);
-      s.connect(hp); hp.connect(lp); lp.connect(g); return g;
-    }, L.gain, P, W);
     wide(bufs.pink, s => {
       const hp = filt('highpass', H.hp, 0.5), bp = filt('bandpass', H.freq, H.q), g = ctx.createGain();
       g.gain.value = H.level; P.push(hp, bp, g);
