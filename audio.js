@@ -166,35 +166,34 @@ function makeCrackle() {
 
 /* Bubbles: a low resonator rung by a soft burst of noise that dies within
    a few cycles, so each one is a dull, woody plop rather than a ping.
-   Most are quiet. */
+   They are sparse and mostly quiet, so the buffer is scaled by its peak. */
 function makeBubbles() {
   const sr = ctx.sampleRate, L = Math.floor(sr * 20);
   const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
   const blip = (start, amp) => {
-    const f0 = 380 * Math.pow(4, Math.random()), dur = (1 + Math.random() * 1.5) / f0;
+    const f0 = 380 * Math.pow(3, Math.random()), dur = (1.5 + Math.random() * 1.5) / f0;
     const len = Math.floor(sr * dur * 5), rise = 0.04 + Math.random() * 0.2;
-    const r = Math.exp(-1 / (dur * sr)), ex = Math.floor(sr * 0.0015);
+    const r = Math.exp(-1 / (dur * sr)), ex = Math.floor(sr * 0.003);
     const norm = 2 * (1 - r) * Math.sin(6.2832 * f0 / sr) * amp;
     let y1 = 0, y2 = 0, e = 0;
     for (let i = 0; i < len; i++) {
       const tt = i / sr, f = f0 * (1 + rise * (1 - Math.exp(-tt / dur)));
-      e += 0.3 * ((i < ex ? (Math.random() * 2 - 1) * (1 - i / ex) : 0) - e);
+      e += 0.12 * ((i < ex ? (Math.random() * 2 - 1) * (1 - i / ex) : 0) - e);
       const y = 2 * r * Math.cos(6.2832 * f / sr) * y1 - r * r * y2 + e;
       y2 = y1; y1 = y;
       d[(start + i) % L] += y * norm;
     }
   };
   const loud = () => Math.pow(Math.random(), 2.5);
-  for (let e = 0; e < 20 * 40; e++) blip(Math.floor(Math.random() * L), 0.1 + loud() * 0.9);
-  for (let c = 0; c < 20 * 5; c++) {
-    const pos = Math.floor(Math.random() * L), cnt = 2 + Math.floor(Math.random() * 5);
-    for (let k = 0; k < cnt; k++) blip(pos + Math.floor(Math.random() * sr * 0.12), 0.1 + loud() * 0.7);
+  for (let e = 0; e < 20 * 10; e++) blip(Math.floor(Math.random() * L), 0.1 + loud() * 0.9);
+  for (let c = 0; c < 20 * 2; c++) {
+    const pos = Math.floor(Math.random() * L), cnt = 2 + Math.floor(Math.random() * 3);
+    for (let k = 0; k < cnt; k++) blip(pos + Math.floor(Math.random() * sr * 0.4), 0.1 + loud() * 0.7);
   }
-  let s = 0, pk = 0;
-  for (let i = 0; i < L; i++) s += d[i] * d[i];
-  const g = 0.08 / (Math.sqrt(s / L) || 1);
-  for (let i = 0; i < L; i++) { d[i] *= g; pk = Math.max(pk, Math.abs(d[i])); }
-  if (pk > 0.95) { const f = 0.95 / pk; for (let i = 0; i < L; i++) d[i] *= f; }
+  let pk = 0;
+  for (let i = 0; i < L; i++) pk = Math.max(pk, Math.abs(d[i]));
+  const g = 0.9 / (pk || 1);
+  for (let i = 0; i < L; i++) d[i] *= g;
   return buf;
 }
 
@@ -360,7 +359,7 @@ const BUILD = {
     }, L.gain, P);
     wide(bufs.bubbles, s => {
       const lp = filt('lowpass', 2400, 0.5), g = ctx.createGain();
-      g.gain.value = 0.6; P.push(lp, g);
+      g.gain.value = 0.38; P.push(lp, g);
       s.connect(lp); lp.connect(g); return g;
     }, L.gain, P);
   },
