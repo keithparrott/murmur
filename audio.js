@@ -164,31 +164,31 @@ function makeCrackle() {
   return buf;
 }
 
-/* Bubbles: a low resonator rung by a soft burst of noise that dies within
-   a few cycles, so each one is a dull, woody plop rather than a ping.
-   They are sparse and mostly quiet, so the buffer is scaled by its peak. */
+/* Bubbles: a resonator rung by a soft burst of noise that dies within a few
+   cycles, so each one is a short plip rather than a ping. Many small, quiet
+   ones overlap into a trickle; the buffer is scaled by its peak. */
 function makeBubbles() {
   const sr = ctx.sampleRate, L = Math.floor(sr * 20);
   const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
   const blip = (start, amp) => {
-    const f0 = 380 * Math.pow(3, Math.random()), dur = (1.5 + Math.random() * 1.5) / f0;
+    const f0 = 700 * Math.pow(4, Math.random()), dur = (2 + Math.random() * 2) / f0;
     const len = Math.floor(sr * dur * 5), rise = Math.random() * 0.06;
-    const r = Math.exp(-1 / (dur * sr)), ex = Math.floor(sr * 0.003);
+    const r = Math.exp(-1 / (dur * sr)), ex = Math.floor(sr * 0.001);
     const norm = 2 * (1 - r) * Math.sin(6.2832 * f0 / sr) * amp;
     let y1 = 0, y2 = 0, e = 0;
     for (let i = 0; i < len; i++) {
       const tt = i / sr, f = f0 * (1 + rise * (1 - Math.exp(-tt / dur)));
-      e += 0.12 * ((i < ex ? (Math.random() * 2 - 1) * (1 - i / ex) : 0) - e);
+      e += 0.35 * ((i < ex ? (Math.random() * 2 - 1) * (1 - i / ex) : 0) - e);
       const y = 2 * r * Math.cos(6.2832 * f / sr) * y1 - r * r * y2 + e;
       y2 = y1; y1 = y;
       d[(start + i) % L] += y * norm;
     }
   };
   const loud = () => Math.pow(Math.random(), 2.5);
-  for (let e = 0; e < 20 * 10; e++) blip(Math.floor(Math.random() * L), 0.1 + loud() * 0.9);
-  for (let c = 0; c < 20 * 2; c++) {
-    const pos = Math.floor(Math.random() * L), cnt = 2 + Math.floor(Math.random() * 3);
-    for (let k = 0; k < cnt; k++) blip(pos + Math.floor(Math.random() * sr * 0.4), 0.1 + loud() * 0.7);
+  for (let e = 0; e < 20 * 90; e++) blip(Math.floor(Math.random() * L), 0.05 + loud() * 0.6);
+  for (let c = 0; c < 20 * 8; c++) {
+    const pos = Math.floor(Math.random() * L), cnt = 3 + Math.floor(Math.random() * 6);
+    for (let k = 0; k < cnt; k++) blip(pos + Math.floor(Math.random() * sr * 0.15), 0.05 + loud() * 0.5);
   }
   let pk = 0;
   for (let i = 0; i < L; i++) pk = Math.max(pk, Math.abs(d[i]));
@@ -211,9 +211,9 @@ function makeBrook() {
     return z > 1 ? 2 - z : z < -1 ? -2 - z : z;
   };
   const voices = [
-    { mod: 14, base: 500, depth: 400, amp: 1 },
-    { mod: 20, base: 1000, depth: 800, amp: 1.6 },
-    { mod: 26, base: 1400, depth: 700, amp: 0.6 }
+    { mod: 18, base: 600, depth: 400, amp: 0.6 },
+    { mod: 26, base: 1100, depth: 800, amp: 1.6 },
+    { mod: 34, base: 1900, depth: 1100, amp: 1 }
   ];
   voices.forEach(v => {
     const k = lpk(v.mod);
@@ -345,20 +345,20 @@ const BUILD = {
     if (!bufs.bubbles) bufs.bubbles = makeBubbles();
     if (!bufs.brook) bufs.brook = makeBrook();
     wide(bufs.brook, s => {
-      const hp = filt('highpass', 180, 0.6), lp = filt('lowpass', 3200, 0.5), g = ctx.createGain();
+      const hp = filt('highpass', 180, 0.6), lp = filt('lowpass', 5000, 0.5), g = ctx.createGain();
       g.gain.value = 1; P.push(hp, lp, g);
       lfo(0.04 + Math.random() * 0.04, 0.15, g.gain, P);
       s.connect(hp); hp.connect(lp); lp.connect(g); return g;
     }, L.gain, P);
     wide(bufs.pink, s => {
-      const hp = filt('highpass', 700, 0.5), bp = filt('bandpass', 1800, 0.8), g = ctx.createGain();
-      g.gain.value = 0.24; P.push(hp, bp, g);
-      lfo(0.05 + Math.random() * 0.05, 350, bp.frequency, P);
+      const hp = filt('highpass', 900, 0.5), bp = filt('bandpass', 2800, 0.8), g = ctx.createGain();
+      g.gain.value = 0.3; P.push(hp, bp, g);
+      lfo(0.05 + Math.random() * 0.05, 500, bp.frequency, P);
       lfo(0.11 + Math.random() * 0.1, 0.1, g.gain, P);
       s.connect(hp); hp.connect(bp); bp.connect(g); return g;
     }, L.gain, P);
     wide(bufs.bubbles, s => {
-      const lp = filt('lowpass', 1500, 0.5), g = ctx.createGain();
+      const lp = filt('lowpass', 4500, 0.5), g = ctx.createGain();
       g.gain.value = 0.38; P.push(lp, g);
       s.connect(lp); lp.connect(g); return g;
     }, L.gain, P);
