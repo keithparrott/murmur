@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stream Tuner</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --card: #fffdf8; --ink: #23211c; --muted: #6d675c; --line: #ddd6c8;
+    --accent: #2f6f62; --accent-ink: #ffffff; --warn: #a2562a; --track: #e3ddd0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171a; --card: #1e2125; --ink: #ebe7df; --muted: #9a958b; --line: #30343a;
+      --accent: #6cc3ad; --accent-ink: #0d1412; --warn: #e39a6b; --track: #2c3036;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171a; --card: #1e2125; --ink: #ebe7df; --muted: #9a958b; --line: #30343a;
+    --accent: #6cc3ad; --accent-ink: #0d1412; --warn: #e39a6b; --track: #2c3036;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-bottom: 14px; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: 0.01em; }
+  .sub { color: var(--muted); margin: 2px 0 0; font-size: 13.5px; }
+  .grow { flex: 1 1 240px; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; min-width: 92px; }
+  button.small { padding: 3px 9px; font-size: 13px; }
+  button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .status { font-size: 13px; color: var(--muted); min-height: 1.4em; }
+  .status.busy { color: var(--warn); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; align-items: start; }
+  section.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .card h2 { font-size: 16px; margin: 0; }
+  .card .what { color: var(--muted); font-size: 13px; margin: 3px 0 10px; }
+  .card-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .card-head h2 { flex: 1; }
+  .ctl { padding: 7px 0; border-top: 1px solid var(--line); }
+  .ctl:first-of-type { border-top: 0; }
+  .ctl-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .ctl label { font-weight: 600; font-size: 14px; }
+  .val { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .val.changed { color: var(--accent); font-weight: 600; }
+  .hint { color: var(--muted); font-size: 12.5px; margin: 1px 0 3px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 2px 0 0; }
+  .sub-h { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 12px 0 2px; }
+  textarea { width: 100%; min-height: 150px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px; resize: vertical; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+  .row input[type=text] { flex: 1 1 140px; font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .snaps { list-style: none; padding: 0; margin: 6px 0 0; }
+  .snaps li { display: flex; gap: 6px; align-items: center; padding: 4px 0; border-top: 1px solid var(--line); }
+  .snaps li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meter { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .meter b { color: var(--ink); font-weight: 600; }
+  .meter b.hot { color: var(--warn); }
+  .note { font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="grow">
+      <h1>Stream tuner</h1>
+      <p class="sub">Shape Murmur's Stream sound. When you like it, press <b>Copy settings</b> and paste them to Claude.</p>
+    </div>
+    <button id="play" class="primary" type="button">Play</button>
+    <button id="surprise" type="button" title="Nudge every control a little at random">Surprise me</button>
+    <button id="resetAll" type="button">Back to app sound</button>
+  </header>
+  <div class="row">
+    <div class="status" id="status">Press Play to start. Changes take a moment to rebuild, then fade in.</div>
+  </div>
+  <div class="row meter" id="meter" aria-live="off">
+    <span>Output peak <b id="mPeak">–</b></span>
+    <span>Compressor pulling down <b id="mComp">–</b></span>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<audio id="out" hidden></audio>
+<script src="data.js"></script>
+<script src="audio.js"></script>
+<script>
+'use strict';
+/* Stream tuner: edits STREAM (data.js) and the stream trim live, and rebuilds
+   BUILD.stream with a short crossfade on every change. */
+const T_DEFAULTS = JSON.parse(JSON.stringify(STREAM));
+const T_STREAM_DEF = LAYERS.find(l => l.id === 'stream');
+T_DEFAULTS.trim = T_STREAM_DEF.trim;
+
+/* Controls. path: where the value lives; buf: which buffer must be remade. */
+const T_GROUPS = [
+  { id: 'overall', title: 'Overall', what: 'How loud the whole stream is and how wide it sits.', controls: [
+    { path: 'ui.slider', label: 'Stream slider', min: 0, max: 1, step: 0.01, def: 0.7, hint: 'Same as the Stream slider in the app. Not saved.', fmt: v => v.toFixed(2) },
+    { path: 'ui.volume', label: 'Master volume', min: 0, max: 1, step: 0.01, def: 0.7, hint: 'Same as the app’s master volume. Not saved.', fmt: v => v.toFixed(2) },
+    { path: 'trim', label: 'Trim', min: 0.3, max: 6, step: 0.05, hint: 'Overall loudness of the Stream sound in the app.', fmt: v => v.toFixed(2) },
+    { path: 'width', label: 'Stereo width', min: 0, max: 1, step: 0.01, hint: '0 is mono in the middle, 1 is hard left and right.', fmt: v => v.toFixed(2) }
+  ] },
+  { id: 'gurgle', title: 'Gurgle', what: 'The churning body of the water: noise split into bands that surge in and out.', controls: [
+    { path: 'gurgle.level', label: 'Level', min: 0, max: 3, step: 0.01, hint: 'How loud the gurgle is.', fmt: v => v.toFixed(2) },
+    { sub: 'Bands' },
+    { path: 'gurgle.bands', label: 'Number of bands', min: 1, max: 10, step: 1, buf: 'brook', hint: 'Fewer is sparser and more distinct; more is a fuller rush.', fmt: v => String(Math.round(v)) },
+    { path: 'gurgle.low', label: 'Lowest band', min: 120, max: 2000, log: true, buf: 'brook', hint: 'Pitch of the lowest band. Lower is deeper and heavier.', fmt: hz },
+    { path: 'gurgle.high', label: 'Highest band', min: 400, max: 9000, log: true, buf: 'brook', hint: 'Pitch of the highest band. Higher is brighter and splashier.', fmt: hz },
+    { path: 'gurgle.jitter', label: 'Band placement randomness', min: 0, max: 0.5, step: 0.01, buf: 'brook', hint: 'How far each band strays from even spacing.', fmt: pct },
+    { path: 'gurgle.q', label: 'Band sharpness', min: 0.5, max: 40, log: true, buf: 'brook', hint: 'Low is soft whooshing noise; high is ringing, tonal, and can sound like a voice.', fmt: v => v.toFixed(1) },
+    { path: 'gurgle.tilt', label: 'Treble tilt', min: -0.6, max: 1.2, step: 0.01, buf: 'brook', hint: 'Above 0 makes the higher bands quieter; below 0 makes them louder.', fmt: v => v.toFixed(2) },
+    { sub: 'Pitch wobble' },
+    { path: 'gurgle.drift', label: 'Wobble amount', min: 0, max: 0.8, step: 0.01, buf: 'brook', hint: 'How far each band’s pitch wanders. A lot sounds like gargling.', fmt: pct },
+    { path: 'gurgle.driftMin', label: 'Wobble speed, slowest', min: 0.3, max: 40, log: true, buf: 'brook', hint: 'Each band picks a wobble speed between slowest and fastest.', fmt: perSec },
+    { path: 'gurgle.driftMax', label: 'Wobble speed, fastest', min: 0.3, max: 40, log: true, buf: 'brook', fmt: perSec },
+    { sub: 'Surges' },
+    { path: 'gurgle.surgeMin', label: 'Surge speed, slowest', min: 0.3, max: 30, log: true, buf: 'brook', hint: 'How often each band swells in and out.', fmt: perSec },
+    { path: 'gurgle.surgeMax', label: 'Surge speed, fastest', min: 0.3, max: 30, log: true, buf: 'brook', fmt: perSec },
+    { path: 'gurgle.floor', label: 'Surge depth', min: -1, max: 1.5, step: 0.01, buf: 'brook', hint: 'Lower leaves silent gaps between surges; higher keeps it flowing steadily.', fmt: v => v.toFixed(2) },
+    { path: 'gurgle.shape', label: 'Surge punch', min: 1, max: 6, step: 0.1, buf: 'brook', hint: 'Higher makes each surge burst out sharper above the rest.', fmt: v => v.toFixed(1) },
+    { sub: 'Tone and movement' },
+    { path: 'gurgle.hp', label: 'Low cut', min: 20, max: 1500, log: true, hint: 'Removes rumble below this pitch.', fmt: hz },
+    { path: 'gurgle.lp', label: 'High cut', min: 800, max: 16000, log: true, hint: 'Removes brightness above this pitch.', fmt: hz },
+    { path: 'gurgle.swell', label: 'Slow swell', min: 0, max: 0.9, step: 0.01, hint: 'A slow rise and fall in loudness every 12 to 25 seconds.', fmt: pct }
+  ] },
+  { id: 'bubbles', title: 'Bubbles', what: 'Small pitched plips. Many quiet ones blend into a trickle; few loud ones sound like a pot boiling.', controls: [
+    { path: 'bubbles.level', label: 'Level', min: 0, max: 2, step: 0.01, hint: 'How loud the bubbles are.', fmt: v => v.toFixed(2) },
+    { sub: 'How many' },
+    { path: 'bubbles.rate', label: 'Single bubbles', min: 0, max: 250, step: 1, buf: 'bubbles', hint: 'Lone bubbles per second.', fmt: perSec },
+    { path: 'bubbles.clusters', label: 'Bursts', min: 0, max: 20, step: 0.5, buf: 'bubbles', hint: 'Little runs of bubbles per second.', fmt: perSec },
+    { path: 'bubbles.clusterMin', label: 'Bubbles per burst, fewest', min: 1, max: 12, step: 1, buf: 'bubbles', fmt: v => String(Math.round(v)) },
+    { path: 'bubbles.clusterMax', label: 'Bubbles per burst, most', min: 1, max: 12, step: 1, buf: 'bubbles', fmt: v => String(Math.round(v)) },
+    { path: 'bubbles.clusterSpread', label: 'Burst length', min: 0.01, max: 1, log: true, buf: 'bubbles', hint: 'How long a burst lasts. Short is a quick rattle, long is a lazy run.', fmt: v => Math.round(v * 1000) + ' ms' },
+    { sub: 'Sound of each bubble' },
+    { path: 'bubbles.low', label: 'Lowest pitch', min: 150, max: 4000, log: true, buf: 'bubbles', hint: 'Low bubbles are big and gloopy.', fmt: hz },
+    { path: 'bubbles.high', label: 'Highest pitch', min: 200, max: 8000, log: true, buf: 'bubbles', hint: 'High bubbles are small and sparkly.', fmt: hz },
+    { path: 'bubbles.ringMin', label: 'Ring, shortest', min: 0.5, max: 20, log: true, buf: 'bubbles', hint: 'How long a bubble rings, in cycles. Short is woody, long is pingy and metallic.', fmt: cycles },
+    { path: 'bubbles.ringMax', label: 'Ring, longest', min: 0.5, max: 20, log: true, buf: 'bubbles', fmt: cycles },
+    { path: 'bubbles.glide', label: 'Pitch glide', min: -0.3, max: 0.6, step: 0.01, buf: 'bubbles', hint: 'How far a bubble’s pitch slides up as it dies (below 0 slides down). Big values chirp.', fmt: pct },
+    { path: 'bubbles.burst', label: 'Attack length', min: 0.1, max: 10, log: true, buf: 'bubbles', hint: 'How long the hit that starts each bubble lasts. Longer is softer.', fmt: v => v.toFixed(1) + ' ms' },
+    { path: 'bubbles.soft', label: 'Attack brightness', min: 0.02, max: 1, log: true, buf: 'bubbles', hint: 'Lower takes the click off the start of each bubble.', fmt: v => v.toFixed(2) },
+    { path: 'bubbles.skew', label: 'Quiet vs loud mix', min: 0.5, max: 6, step: 0.1, buf: 'bubbles', hint: 'Higher makes most bubbles quiet with the odd loud one; lower makes them all similar.', fmt: v => v.toFixed(1) },
+    { path: 'bubbles.lp', label: 'High cut', min: 500, max: 16000, log: true, hint: 'Removes brightness above this pitch.', fmt: hz }
+  ] },
+  { id: 'hiss', title: 'Hiss', what: 'A steady spray of noise behind everything.', controls: [
+    { path: 'hiss.level', label: 'Level', min: 0, max: 1.5, step: 0.01, hint: 'How loud the hiss is.', fmt: v => v.toFixed(2) },
+    { path: 'hiss.freq', label: 'Centre pitch', min: 300, max: 10000, log: true, hint: 'Where the hiss sits. Higher is a finer spray.', fmt: hz },
+    { path: 'hiss.q', label: 'Narrowness', min: 0.2, max: 10, log: true, hint: 'Low is a broad hiss; high is a narrow, whistly band.', fmt: v => v.toFixed(2) },
+    { path: 'hiss.hp', label: 'Low cut', min: 100, max: 6000, log: true, hint: 'Removes the hiss below this pitch.', fmt: hz },
+    { path: 'hiss.drift', label: 'Pitch drift', min: 0, max: 3000, step: 10, hint: 'How far the centre pitch wanders, slowly.', fmt: hz },
+    { path: 'hiss.swell', label: 'Swell', min: 0, max: 0.9, step: 0.01, hint: 'A gentle rise and fall in loudness every 5 to 9 seconds.', fmt: pct }
+  ] }
+];
+
+function hz(v) { return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 1 : 2) + ' kHz' : Math.round(v) + ' Hz'; }
+function pct(v) { return Math.round(v * 100) + '%'; }
+function perSec(v) { return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' /s'; }
+function cycles(v) { return v.toFixed(1) + ' cycles'; }
+
+/* ---------- settings model ---------- */
+const tCur = JSON.parse(JSON.stringify(T_DEFAULTS));
+const tUi = { slider: 0.7, volume: 0.7 };
+const tMute = { gurgle: false, bubbles: false, hiss: false };
+let tSolo = null;
+
+function tGet(path) {
+  const [a, b] = path.split('.');
+  if (a === 'ui') return tUi[b];
+  return b ? tCur[a][b] : tCur[a];
+}
+function tSet(path, v) {
+  const [a, b] = path.split('.');
+  if (a === 'ui') tUi[b] = v; else if (b) tCur[a][b] = v; else tCur[a] = v;
+}
+function defOf(path) {
+  const [a, b] = path.split('.');
+  if (a === 'ui') return T_GROUPS[0].controls.find(c => c.path === path).def;
+  return b ? T_DEFAULTS[a][b] : T_DEFAULTS[a];
+}
+const T_ALL = T_GROUPS.flatMap(g => g.controls.filter(c => c.path));
+
+/* Copy tCur into the live STREAM table, fixing min/max order and mutes. */
+function tPush() {
+  const pair = (o, a, b) => { if (o[a] > o[b]) { const t = o[a]; o[a] = o[b]; o[b] = t; } };
+  STREAM.width = tCur.width;
+  for (const k of ['gurgle', 'bubbles', 'hiss']) {
+    Object.assign(STREAM[k], tCur[k]);
+    const silent = tSolo ? tSolo !== k : tMute[k];
+    if (silent) STREAM[k].level = 0;
+  }
+  pair(STREAM.gurgle, 'driftMin', 'driftMax'); pair(STREAM.gurgle, 'surgeMin', 'surgeMax');
+  pair(STREAM.gurgle, 'low', 'high'); pair(STREAM.bubbles, 'low', 'high');
+  pair(STREAM.bubbles, 'ringMin', 'ringMax'); pair(STREAM.bubbles, 'clusterMin', 'clusterMax');
+  STREAM.bubbles.clusterMin = Math.round(STREAM.bubbles.clusterMin);
+  STREAM.bubbles.clusterMax = Math.round(STREAM.bubbles.clusterMax);
+  STREAM.gurgle.bands = Math.round(STREAM.gurgle.bands);
+}
+
+/* ---------- audio ---------- */
+let tLive = null, tTimer = 0, tStarted = false, tOn = false;
+const tBufKey = { brook: '', bubbles: '' };
+const keyFor = (grp) => JSON.stringify(T_ALL.filter(c => c.buf === grp).map(c => STREAM[c.path.split('.')[0]][c.path.split('.')[1]]));
+
+function tLayerGain() { return Math.pow(tUi.slider, 2.2) * tCur.trim; }
+
+function tStart() {
+  if (!ensureCtx()) { status('This browser has no Web Audio.', true); return false; }
+  nodes.play.gain.setTargetAtTime(1, ctx.currentTime, 0.1);
+  nodes.vol.gain.setTargetAtTime(volGain(tUi.volume), ctx.currentTime, 0.1);
+  tStarted = true;
+  return true;
+}
+
+function tRebuild() {
+  if (!tStarted) return;
+  tPush();
+  const nb = keyFor('brook'), nu = keyFor('bubbles');
+  const remake = [];
+  if (nb !== tBufKey.brook) { bufs.brook = null; remake.push('gurgle'); }
+  if (nu !== tBufKey.bubbles) { bufs.bubbles = null; remake.push('bubbles'); }
+  status(remake.length ? 'Rebuilding ' + remake.join(' and ') + '…' : 'Updating…', true);
+  // let the status paint before the (blocking) buffer generation
+  setTimeout(() => {
+    const t0 = performance.now();
+    const L = { gain: ctx.createGain(), onKill: [], parts: [] };
+    L.gain.gain.value = 0;
+    L.gain.connect(nodes.vol);
+    BUILD.stream(L, L.parts);
+    tBufKey.brook = nb; tBufKey.bubbles = nu;
+    const now = ctx.currentTime;
+    L.gain.gain.setTargetAtTime(tOn ? tLayerGain() : 0, now, 0.12);
+    const old = tLive;
+    tLive = L;
+    if (old) {
+      old.gain.gain.cancelScheduledValues(now);
+      old.gain.gain.setTargetAtTime(0, now, 0.12);
+      setTimeout(() => tKill(old), 1200);
+    }
+    const ms = Math.round(performance.now() - t0);
+    status(tOn ? 'Playing.' + (remake.length ? ' Rebuilt in ' + ms + ' ms.' : '') : 'Paused.', false);
+  }, 30);
+}
+
+function tKill(L) {
+  L.onKill.forEach(fn => { try { fn(); } catch (e) {} });
+  L.parts.forEach(p => { try { if (p.stop) p.stop(); } catch (e) {} try { p.disconnect(); } catch (e) {} });
+  try { L.gain.disconnect(); } catch (e) {}
+}
+
+function tLevels() {
+  if (!tStarted) return;
+  const now = ctx.currentTime;
+  nodes.vol.gain.setTargetAtTime(volGain(tUi.volume), now, 0.08);
+  if (tLive) tLive.gain.gain.setTargetAtTime(tOn ? tLayerGain() : 0, now, 0.08);
+}
+
+function schedule(kind) {
+  if (kind === 'level') { tLevels(); save(); renderOut(); return; }
+  clearTimeout(tTimer);
+  tTimer = setTimeout(tRebuild, 220);
+  save(); renderOut();
+}
+
+$('#play').addEventListener('click', async () => {
+  if (!tStarted && !tStart()) return;
+  if (ctx.state !== 'running') { try { await ctx.resume(); } catch (e) {} }
+  tOn = !tOn;
+  $('#play').textContent = tOn ? 'Pause' : 'Play';
+  if (tOn && !tLive) tRebuild(); else { tLevels(); status(tOn ? 'Playing.' : 'Paused.', false); }
+});
+
+/* ---------- meter ---------- */
+const tBuf = new Float32Array(2048);
+let tPeakHold = 0;
+function meter() {
+  if (tStarted && nodes && nodes.an) {
+    nodes.an.getFloatTimeDomainData(tBuf);
+    let pk = 0;
+    for (let i = 0; i < tBuf.length; i++) pk = Math.max(pk, Math.abs(tBuf[i]));
+    tPeakHold = Math.max(pk, tPeakHold * 0.93);
+    const db = tPeakHold > 0 ? 20 * Math.log10(tPeakHold) : -Infinity;
+    const r = nodes.comp.reduction;
+    const red = typeof r === 'number' ? r : (r && r.value) || 0;
+    const p = $('#mPeak'), c = $('#mComp');
+    p.textContent = isFinite(db) ? db.toFixed(1) + ' dB' : '–';
+    p.classList.toggle('hot', db > -1);
+    c.textContent = Math.abs(red).toFixed(1) + ' dB';
+    c.classList.toggle('hot', red < -3);
+  }
+  requestAnimationFrame(meter);
+}
+requestAnimationFrame(meter);
+
+/* ---------- UI ---------- */
+function status(t, busy) { const s = $('#status'); s.textContent = t; s.classList.toggle('busy', !!busy); }
+
+const T_STEPS = 1000;
+function toPos(c, v) { return c.log ? Math.round(Math.log(v / c.min) / Math.log(c.max / c.min) * T_STEPS) : v; }
+function fromPos(c, p) {
+  if (!c.log) return +p;
+  const v = c.min * Math.pow(c.max / c.min, p / T_STEPS);
+  return v >= 100 ? Math.round(v) : v >= 10 ? Math.round(v * 10) / 10 : Math.round(v * 100) / 100;
+}
+const T_INPUTS = {};
+
+function buildUI() {
+  const grid = $('#grid');
+  T_GROUPS.forEach(g => {
+    const sec = document.createElement('section');
+    sec.className = 'card';
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    head.innerHTML = '<h2>' + g.title + '</h2>';
+    if (g.id !== 'overall') {
+      const mute = btn('Mute', () => { tMute[g.id] = !tMute[g.id]; mute.classList.toggle('on', tMute[g.id]); mute.setAttribute('aria-pressed', tMute[g.id]); schedule('build'); });
+      const solo = btn('Solo', () => { tSolo = tSolo === g.id ? null : g.id; document.querySelectorAll('[data-solo]').forEach(b => { const on = b.dataset.solo === tSolo; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); schedule('build'); });
+      solo.dataset.solo = g.id; mute.setAttribute('aria-pressed', 'false'); solo.setAttribute('aria-pressed', 'false');
+      head.append(mute, solo);
+    }
+    head.append(btn('Reset', () => { g.controls.forEach(c => { if (c.path && !c.path.startsWith('ui.')) { tSet(c.path, defOf(c.path)); sync(c); } }); schedule('build'); }));
+    sec.append(head);
+    const what = document.createElement('p'); what.className = 'what'; what.textContent = g.what; sec.append(what);
+    g.controls.forEach(c => {
+      if (c.sub) { const h = document.createElement('div'); h.className = 'sub-h'; h.textContent = c.sub; sec.append(h); return; }
+      const id = 'c-' + c.path.replace('.', '-');
+      const box = document.createElement('div'); box.className = 'ctl';
+      box.innerHTML = '<div class="ctl-top"><label for="' + id + '"></label><span class="val"></span></div>' + (c.hint ? '<div class="hint"></div>' : '') + '<input type="range" id="' + id + '">';
+      box.querySelector('label').textContent = c.label;
+      if (c.hint) box.querySelector('.hint').textContent = c.hint;
+      const inp = box.querySelector('input');
+      if (c.log) { inp.min = 0; inp.max = T_STEPS; inp.step = 1; } else { inp.min = c.min; inp.max = c.max; inp.step = c.step; }
+      inp.addEventListener('input', () => {
+        tSet(c.path, fromPos(c, inp.value)); sync(c, true);
+        schedule(c.path.startsWith('ui.') || c.path === 'trim' ? 'level' : 'build');
+      });
+      inp.addEventListener('dblclick', () => { tSet(c.path, defOf(c.path)); sync(c); schedule(c.path.startsWith('ui.') || c.path === 'trim' ? 'level' : 'build'); });
+      T_INPUTS[c.path] = { c, inp, val: box.querySelector('.val') };
+      sec.append(box);
+      sync(c);
+    });
+    grid.append(sec);
+  });
+  grid.append(outCard());
+}
+
+function btn(label, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = 'small'; b.textContent = label; b.addEventListener('click', fn); return b; }
+
+function sync(c, fromInput) {
+  const r = T_INPUTS[c.path]; if (!r) return;
+  const v = tGet(c.path);
+  if (!fromInput) r.inp.value = toPos(c, v);
+  r.val.textContent = c.fmt(v);
+  const changed = !c.path.startsWith('ui.') && Math.abs(v - defOf(c.path)) > 1e-9;
+  r.val.classList.toggle('changed', changed);
+  r.val.title = changed ? 'App value: ' + c.fmt(defOf(c.path)) + ' (double-click the slider to go back)' : 'Same as the app';
+}
+
+function outCard() {
+  const sec = document.createElement('section');
+  sec.className = 'card';
+  sec.innerHTML = '<div class="card-head"><h2>Settings to send</h2></div>' +
+    '<p class="what">Changed values are listed first. Copy this and paste it to Claude.</p>' +
+    '<div class="row"><button type="button" class="primary" id="copy">Copy settings</button><span class="note" id="copied"></span></div>' +
+    '<textarea id="out-text" readonly aria-label="Current stream settings"></textarea>' +
+    '<div class="sub-h">Snapshots</div>' +
+    '<p class="what">Save versions you like so you can flip between them.</p>' +
+    '<div class="row"><input type="text" id="snapName" placeholder="Name, e.g. calm creek" maxlength="40"><button type="button" id="snapSave">Save</button></div>' +
+    '<ul class="snaps" id="snaps"></ul>' +
+    '<p class="note">Tip: double-click any slider to put it back to the app value. Mute and Solo are just for listening and aren’t saved.</p>';
+  setTimeout(() => {
+    $('#copy').addEventListener('click', async () => {
+      const ta = $('#out-text');
+      let ok = false;
+      try { await navigator.clipboard.writeText(ta.value); ok = true; } catch (e) {
+        ta.focus(); ta.select(); try { ok = document.execCommand('copy'); } catch (e2) {}
+      }
+      $('#copied').textContent = ok ? 'Copied.' : 'Select the text and copy it.';
+      setTimeout(() => { $('#copied').textContent = ''; }, 2500);
+    });
+    $('#snapSave').addEventListener('click', () => {
+      const name = $('#snapName').value.trim() || 'Snapshot ' + (tSnaps.length + 1);
+      tSnaps.unshift({ name, s: JSON.parse(JSON.stringify(tCur)) });
+      tSnaps = tSnaps.slice(0, 30);
+      $('#snapName').value = '';
+      saveSnaps(); renderSnaps();
+    });
+    renderOut(); renderSnaps();
+  });
+  return sec;
+}
+
+function renderOut() {
+  const ta = $('#out-text'); if (!ta) return;
+  const lines = [];
+  T_ALL.forEach(c => {
+    if (c.path.startsWith('ui.')) return;
+    const v = tGet(c.path), d = defOf(c.path);
+    if (Math.abs(v - d) > 1e-9) lines.push('  ' + c.path + ': ' + round(v) + '   (was ' + round(d) + ')');
+  });
+  const full = { trim: round(tCur.trim), width: round(tCur.width) };
+  for (const k of ['gurgle', 'bubbles', 'hiss']) { full[k] = {}; for (const p in tCur[k]) full[k][p] = round(tCur[k][p]); }
+  ta.value = 'Murmur stream settings\n' +
+    (lines.length ? 'Changed:\n' + lines.join('\n') : 'Changed: nothing, same as the app') +
+    '\n\nListened at: Stream slider ' + tUi.slider.toFixed(2) + ', master volume ' + tUi.volume.toFixed(2) +
+    '\n\nAll:\n' + JSON.stringify(full, null, 1);
+}
+function round(v) { return Math.round(v * 1000) / 1000; }
+
+/* ---------- storage ---------- */
+const T_KEY = 'murmur.streamTuner.v1';
+let tSnaps = [];
+function save() { try { localStorage.setItem(T_KEY, JSON.stringify({ cur: tCur, ui: tUi })); } catch (e) {} }
+function saveSnaps() { try { localStorage.setItem(T_KEY + '.snaps', JSON.stringify(tSnaps)); } catch (e) {} }
+function load() {
+  try {
+    const o = JSON.parse(localStorage.getItem(T_KEY) || 'null');
+    if (o && o.cur) mergeInto(tCur, o.cur);
+    if (o && o.ui) Object.assign(tUi, o.ui);
+  } catch (e) {}
+  try { tSnaps = JSON.parse(localStorage.getItem(T_KEY + '.snaps') || '[]') || []; } catch (e) { tSnaps = []; }
+}
+function mergeInto(dst, src) {
+  for (const k in dst) {
+    if (!(k in src)) continue;
+    if (typeof dst[k] === 'object') mergeInto(dst[k], src[k]);
+    else if (typeof src[k] === 'number' && isFinite(src[k])) dst[k] = src[k];
+  }
+}
+function renderSnaps() {
+  const ul = $('#snaps'); if (!ul) return;
+  ul.innerHTML = '';
+  if (!tSnaps.length) { const li = document.createElement('li'); li.innerHTML = '<span class="note">None yet.</span>'; ul.append(li); return; }
+  tSnaps.forEach((sn, i) => {
+    const li = document.createElement('li');
+    const sp = document.createElement('span'); sp.textContent = sn.name; li.append(sp);
+    li.append(btn('Load', () => { mergeInto(tCur, sn.s); T_ALL.forEach(c => sync(c)); schedule('build'); tLevels(); status('Loaded “' + sn.name + '”.', false); }));
+    li.append(btn('Remove', () => { tSnaps.splice(i, 1); saveSnaps(); renderSnaps(); }));
+    ul.append(li);
+  });
+}
+
+/* ---------- surprise / reset ---------- */
+$('#surprise').addEventListener('click', () => {
+  T_ALL.forEach(c => {
+    if (c.path.startsWith('ui.') || c.path === 'trim') return;
+    const span = c.log ? T_STEPS : (c.max - c.min);
+    let p = toPos(c, tGet(c.path)) + (Math.random() * 2 - 1) * span * 0.08;
+    p = c.log ? Math.max(0, Math.min(T_STEPS, p)) : Math.max(c.min, Math.min(c.max, p));
+    let v = fromPos(c, p);
+    if (!c.log && c.step) v = Math.round(v / c.step) * c.step;
+    tSet(c.path, round(v)); sync(c);
+  });
+  schedule('build');
+});
+$('#resetAll').addEventListener('click', () => {
+  mergeInto(tCur, T_DEFAULTS);
+  T_ALL.forEach(c => sync(c));
+  schedule('build'); tLevels();
+});
+
+load();
+buildUI();
+</script>
+</body>
+</html>

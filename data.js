@@ -36,6 +36,24 @@ const SURF = {
   leaves: { label: 'Leaves',   short: 'leaves',   bed: { hp: 1400, lp: 10000, g: 0.9, pk1: [4500, 1, 3],   pk2: [7000, 1, 3] },  drop: { lp: 7000,  pk: [4500, 2, 6],   g: 1.2 } }
 };
 
+/* Stream synthesis settings, read by makeBrook, makeBubbles and BUILD.stream.
+   stream-tuner.html edits a copy of this live. */
+const STREAM = {
+  width: 0.7,
+  gurgle: {
+    bands: 4, low: 450, high: 3600, jitter: 0.1, q: 5, tilt: 0.25,
+    drift: 0.1, driftMin: 5, driftMax: 11,
+    surgeMin: 5, surgeMax: 10, floor: 0.1, shape: 3,
+    level: 1.1, hp: 180, lp: 5000, swell: 0.15
+  },
+  bubbles: {
+    rate: 90, clusters: 8, clusterMin: 3, clusterMax: 8, clusterSpread: 0.15,
+    low: 700, high: 2800, ringMin: 2, ringMax: 4, glide: 0.06,
+    burst: 1, soft: 0.35, skew: 2.5, level: 0.38, lp: 4500
+  },
+  hiss: { level: 0.3, hp: 900, freq: 2800, q: 0.8, drift: 500, swell: 0.33 }
+};
+
 const BUILTIN = [
   { id: 'b-shore',  name: 'Night shore', levels: { ocean: 0.55, rain: 0.22, wind: 0.18 }, drift: true },
   { id: 'b-sleep',  name: 'Deep sleep',  levels: { brown: 0.5, rain: 0.3 }, drift: false },

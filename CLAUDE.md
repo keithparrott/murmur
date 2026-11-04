@@ -6,11 +6,12 @@ Static web app with no build step and no dependencies. Fonts come from Google Fo
 
 - `index.html`: markup only. It links `styles.css` and loads the scripts in order.
 - `styles.css`: all styles, with the theme tokens at the top.
-- `data.js`: helpers (`$`, `clamp`), `LAYERS`, `GROUPS`, `SURF`, `BUILTIN` and `state`. Loads first.
+- `data.js`: helpers (`$`, `clamp`), `LAYERS`, `GROUPS`, `SURF`, `STREAM`, `BUILTIN` and `state`. Loads first.
 - `audio.js`: audio engine, `BUILD`, layers, drift (`effLevel`), play/pause and the sleep timer.
 - `scene-art.js`: `SCENE_ART`, the pixel scene's data: palettes per time of day, storm colours, tree, creek, puddle and cloud positions, and small sprites. No drawing code.
 - `scene.js`: the pixel scene renderer. Exposes one global, `scene`.
 - `ui.js`: spectrum scope, `ICONS`, mixer, transport UI, presets, storage and boot. Loads last.
+- `stream-tuner.html`: a standalone tool page with sliders for every `STREAM` setting. It loads only `data.js` and `audio.js` and rebuilds `BUILD.stream` live. Its "Copy settings" output lists the changed values to copy back into `STREAM` and the stream `trim`.
 
 The scripts are classic scripts (not ES modules) so the page still works when opened from disk. They share top-level names, so keep new names distinct. Each file starts with `'use strict'`.
 
