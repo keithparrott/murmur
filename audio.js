@@ -167,22 +167,79 @@ function makeCrackle() {
 function makeBubbles() {
   const sr = ctx.sampleRate, L = Math.floor(sr * 20);
   const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
-  const n = 20 * 45;
-  for (let e = 0; e < n; e++) {
-    const start = Math.floor(Math.random() * L);
-    const dur = 0.015 + Math.random() * 0.04, len = Math.floor(sr * dur);
-    const f0 = 500 + Math.pow(Math.random(), 1.5) * 2800, k = 0.8 + Math.random() * 1.2;
-    const amp = 0.2 + Math.random() * 0.8;
-    let ph = 0;
+  const blip = (start, amp) => {
+    const f0 = 700 * Math.pow(6, Math.random()), dur = 0.006 + 9 / f0 * (0.6 + Math.random());
+    const len = Math.floor(sr * dur * 4), rise = 0.08 + Math.random() * 0.3;
+    let ph = Math.random() * 6.2832;
     for (let i = 0; i < len; i++) {
       const tt = i / sr;
-      ph += 6.2832 * f0 * (1 + k * tt / dur) / sr;
-      d[(start + i) % L] += Math.sin(ph) * Math.exp(-tt / (dur * 0.5)) * (1 - Math.exp(-tt / 0.0015)) * amp;
+      ph += 6.2832 * f0 * (1 + rise * Math.min(1, tt / dur)) / sr;
+      d[(start + i) % L] += Math.sin(ph) * Math.exp(-tt / dur) * (1 - Math.exp(-tt / 0.0008)) * amp;
     }
+  };
+  for (let e = 0; e < 20 * 30; e++) blip(Math.floor(Math.random() * L), 0.15 + Math.random() * 0.6);
+  for (let c = 0; c < 20 * 6; c++) {
+    const pos = Math.floor(Math.random() * L), cnt = 2 + Math.floor(Math.random() * 6);
+    for (let k = 0; k < cnt; k++) blip(pos + Math.floor(Math.random() * sr * 0.12), 0.2 + Math.random() * 0.8);
   }
   let s = 0, pk = 0;
   for (let i = 0; i < L; i++) s += d[i] * d[i];
   const g = 0.08 / (Math.sqrt(s / L) || 1);
+  for (let i = 0; i < L; i++) { d[i] *= g; pk = Math.max(pk, Math.abs(d[i])); }
+  if (pk > 0.95) { const f = 0.95 / pk; for (let i = 0; i < L; i++) d[i] *= f; }
+  return buf;
+}
+
+/* Babbling water: very dark noise through a sharp resonant highpass whose
+   cutoff wanders quickly at random, so it gurgles like water over stones. */
+function makeBrook() {
+  const sr = ctx.sampleRate, L = Math.floor(sr * 24), X = Math.floor(sr * 0.5);
+  const raw = new Float32Array(L + X);
+  const lpk = (fc) => {
+    const w = 2 * Math.PI * fc / sr, al = Math.sin(w) / Math.SQRT2, c = Math.cos(w), a0 = 1 + al;
+    return [(1 - c) / 2 / a0, (1 - c) / a0, (1 - c) / 2 / a0, -2 * c / a0, (1 - al) / a0];
+  };
+  const walk = (z) => {
+    z += (Math.random() * 2 - 1) * 0.125;
+    return z > 1 ? 2 - z : z < -1 ? -2 - z : z;
+  };
+  const voices = [
+    { mod: 14, base: 500, depth: 400, amp: 1 },
+    { mod: 20, base: 1000, depth: 800, amp: 1.6 },
+    { mod: 26, base: 2100, depth: 1300, amp: 0.9 }
+  ];
+  voices.forEach(v => {
+    const k = lpk(v.mod);
+    let src = 0, dark = 0, mb = 0, m1 = 0, m2 = 0, n1 = 0, n2 = 0, y1 = 0, y2 = 0;
+    let a0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < raw.length; i++) {
+      src = walk(src);
+      dark = 0.01 * src + 0.99 * dark;
+      mb = walk(mb);
+      const m = k[0] * mb + k[1] * m1 + k[2] * m2 - k[3] * n1 - k[4] * n2;
+      m2 = m1; m1 = mb; n2 = n1; n1 = m;
+      if ((i & 7) === 0) {
+        const f = Math.max(120, v.base + m * v.depth * 2.5), w = 2 * Math.PI * f / sr;
+        const D = Math.tan(w * 0.03 * 0.5), C = (1 - D) / (1 + D);
+        b1 = (1 + C) * Math.cos(w); b2 = -C; a0 = (1 + C + b1) * 0.25;
+      }
+      const y0 = a0 * dark + b1 * y1 + b2 * y2;
+      raw[i] += (y0 - 2 * y1 + y2) * v.amp;
+      y2 = y1; y1 = y0;
+    }
+  });
+  const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
+  for (let i = 0; i < L; i++) {
+    if (i < X) {
+      const a = (i / X) * Math.PI / 2;
+      d[i] = raw[i] * Math.sin(a) + raw[L + i] * Math.cos(a);
+    } else {
+      d[i] = raw[i];
+    }
+  }
+  let s = 0, pk = 0;
+  for (let i = 0; i < L; i++) s += d[i] * d[i];
+  const g = 0.1 / (Math.sqrt(s / L) || 1);
   for (let i = 0; i < L; i++) { d[i] *= g; pk = Math.max(pk, Math.abs(d[i])); }
   if (pk > 0.95) { const f = 0.95 / pk; for (let i = 0; i < L; i++) d[i] *= f; }
   return buf;
@@ -279,15 +336,22 @@ const BUILD = {
   },
   stream(L, P) {
     if (!bufs.bubbles) bufs.bubbles = makeBubbles();
+    if (!bufs.brook) bufs.brook = makeBrook();
+    wide(bufs.brook, s => {
+      const hp = filt('highpass', 180, 0.6), g = ctx.createGain();
+      g.gain.value = 1; P.push(hp, g);
+      lfo(0.04 + Math.random() * 0.04, 0.15, g.gain, P);
+      s.connect(hp); hp.connect(g); return g;
+    }, L.gain, P);
     wide(bufs.pink, s => {
-      const bp = filt('bandpass', 1900, 0.45), g = ctx.createGain();
-      g.gain.value = 0.8; P.push(bp, g);
-      lfo(0.06 + Math.random() * 0.05, 700, bp.frequency, P);
-      lfo(0.35 + Math.random() * 0.3, 0.2, g.gain, P);
-      s.connect(bp); bp.connect(g); return g;
+      const hp = filt('highpass', 900, 0.5), bp = filt('bandpass', 2600, 0.8), g = ctx.createGain();
+      g.gain.value = 0.3; P.push(hp, bp, g);
+      lfo(0.05 + Math.random() * 0.05, 500, bp.frequency, P);
+      lfo(0.11 + Math.random() * 0.1, 0.1, g.gain, P);
+      s.connect(hp); hp.connect(bp); bp.connect(g); return g;
     }, L.gain, P);
     wide(bufs.bubbles, s => {
-      const g = ctx.createGain(); g.gain.value = 1; P.push(g);
+      const g = ctx.createGain(); g.gain.value = 0.55; P.push(g);
       s.connect(g); return g;
     }, L.gain, P);
   },
