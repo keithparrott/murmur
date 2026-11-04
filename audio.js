@@ -164,21 +164,22 @@ function makeCrackle() {
   return buf;
 }
 
-/* Bubbles: a resonator rung by a short burst of noise rather than a pure
-   sine, so each one is a soft, slightly breathy plip. Most are quiet. */
+/* Bubbles: a low resonator rung by a soft burst of noise that dies within
+   a few cycles, so each one is a dull, woody plop rather than a ping.
+   Most are quiet. */
 function makeBubbles() {
   const sr = ctx.sampleRate, L = Math.floor(sr * 20);
   const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
   const blip = (start, amp) => {
-    const f0 = 900 * Math.pow(5, Math.random()), dur = 0.003 + 5 / f0 * (0.5 + Math.random());
+    const f0 = 380 * Math.pow(4, Math.random()), dur = (1 + Math.random() * 1.5) / f0;
     const len = Math.floor(sr * dur * 5), rise = 0.04 + Math.random() * 0.2;
-    const r = Math.exp(-1 / (dur * sr)), ex = Math.floor(sr * 0.0007);
+    const r = Math.exp(-1 / (dur * sr)), ex = Math.floor(sr * 0.0015);
     const norm = 2 * (1 - r) * Math.sin(6.2832 * f0 / sr) * amp;
-    let y1 = 0, y2 = 0;
+    let y1 = 0, y2 = 0, e = 0;
     for (let i = 0; i < len; i++) {
       const tt = i / sr, f = f0 * (1 + rise * (1 - Math.exp(-tt / dur)));
-      const x = i < ex ? (Math.random() * 2 - 1) * (1 - i / ex) : 0;
-      const y = 2 * r * Math.cos(6.2832 * f / sr) * y1 - r * r * y2 + x;
+      e += 0.3 * ((i < ex ? (Math.random() * 2 - 1) * (1 - i / ex) : 0) - e);
+      const y = 2 * r * Math.cos(6.2832 * f / sr) * y1 - r * r * y2 + e;
       y2 = y1; y1 = y;
       d[(start + i) % L] += y * norm;
     }
@@ -358,8 +359,8 @@ const BUILD = {
       s.connect(hp); hp.connect(bp); bp.connect(g); return g;
     }, L.gain, P);
     wide(bufs.bubbles, s => {
-      const lp = filt('lowpass', 5500, 0.5), g = ctx.createGain();
-      g.gain.value = 0.4; P.push(lp, g);
+      const lp = filt('lowpass', 2400, 0.5), g = ctx.createGain();
+      g.gain.value = 0.6; P.push(lp, g);
       s.connect(lp); lp.connect(g); return g;
     }, L.gain, P);
   },
