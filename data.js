@@ -14,7 +14,7 @@ const LAYERS = [
 
 LAYERS.push(
   { id: 'thunder', name: 'Thunder',     trim: 1.3, note: 'Distant rolls, one every half minute or so.' },
-  { id: 'stream',  name: 'Stream',      trim: 1.7, note: 'Bright running water over stones.' },
+  { id: 'stream',  name: 'Stream',      trim: 2.1, note: 'Bright running water over stones.' },
   { id: 'fan',     name: 'Fan',         trim: 1.5, note: 'Air through blades over a low motor hum.' },
   { id: 'fire',    name: 'Fire',        trim: 1.8, note: 'A low roar with pops and snaps.' },
   { id: 'chimes',  name: 'Wind chimes', trim: 1.0, note: 'Soft metal tubes, struck in gusts.' }

@@ -164,23 +164,30 @@ function makeCrackle() {
   return buf;
 }
 
+/* Bubbles: a resonator rung by a short burst of noise rather than a pure
+   sine, so each one is a soft, slightly breathy plip. Most are quiet. */
 function makeBubbles() {
   const sr = ctx.sampleRate, L = Math.floor(sr * 20);
   const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
   const blip = (start, amp) => {
-    const f0 = 700 * Math.pow(6, Math.random()), dur = 0.006 + 9 / f0 * (0.6 + Math.random());
-    const len = Math.floor(sr * dur * 4), rise = 0.08 + Math.random() * 0.3;
-    let ph = Math.random() * 6.2832;
+    const f0 = 900 * Math.pow(5, Math.random()), dur = 0.003 + 5 / f0 * (0.5 + Math.random());
+    const len = Math.floor(sr * dur * 5), rise = 0.04 + Math.random() * 0.2;
+    const r = Math.exp(-1 / (dur * sr)), ex = Math.floor(sr * 0.0007);
+    const norm = 2 * (1 - r) * Math.sin(6.2832 * f0 / sr) * amp;
+    let y1 = 0, y2 = 0;
     for (let i = 0; i < len; i++) {
-      const tt = i / sr;
-      ph += 6.2832 * f0 * (1 + rise * Math.min(1, tt / dur)) / sr;
-      d[(start + i) % L] += Math.sin(ph) * Math.exp(-tt / dur) * (1 - Math.exp(-tt / 0.0008)) * amp;
+      const tt = i / sr, f = f0 * (1 + rise * (1 - Math.exp(-tt / dur)));
+      const x = i < ex ? (Math.random() * 2 - 1) * (1 - i / ex) : 0;
+      const y = 2 * r * Math.cos(6.2832 * f / sr) * y1 - r * r * y2 + x;
+      y2 = y1; y1 = y;
+      d[(start + i) % L] += y * norm;
     }
   };
-  for (let e = 0; e < 20 * 30; e++) blip(Math.floor(Math.random() * L), 0.15 + Math.random() * 0.6);
-  for (let c = 0; c < 20 * 6; c++) {
-    const pos = Math.floor(Math.random() * L), cnt = 2 + Math.floor(Math.random() * 6);
-    for (let k = 0; k < cnt; k++) blip(pos + Math.floor(Math.random() * sr * 0.12), 0.2 + Math.random() * 0.8);
+  const loud = () => Math.pow(Math.random(), 2.5);
+  for (let e = 0; e < 20 * 40; e++) blip(Math.floor(Math.random() * L), 0.1 + loud() * 0.9);
+  for (let c = 0; c < 20 * 5; c++) {
+    const pos = Math.floor(Math.random() * L), cnt = 2 + Math.floor(Math.random() * 5);
+    for (let k = 0; k < cnt; k++) blip(pos + Math.floor(Math.random() * sr * 0.12), 0.1 + loud() * 0.7);
   }
   let s = 0, pk = 0;
   for (let i = 0; i < L; i++) s += d[i] * d[i];
@@ -351,8 +358,9 @@ const BUILD = {
       s.connect(hp); hp.connect(bp); bp.connect(g); return g;
     }, L.gain, P);
     wide(bufs.bubbles, s => {
-      const g = ctx.createGain(); g.gain.value = 0.55; P.push(g);
-      s.connect(g); return g;
+      const lp = filt('lowpass', 5500, 0.5), g = ctx.createGain();
+      g.gain.value = 0.4; P.push(lp, g);
+      s.connect(lp); lp.connect(g); return g;
     }, L.gain, P);
   },
   fan(L, P) {
