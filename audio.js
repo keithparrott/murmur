@@ -197,44 +197,42 @@ function makeBubbles() {
   return buf;
 }
 
-/* Babbling water: very dark noise through a sharp resonant highpass whose
-   cutoff wanders quickly at random, so it gurgles like water over stones. */
+/* Babbling water: noise split into several bands from about 450 Hz to
+   3.6 kHz. Each band drifts a little in pitch and swells in and out on its
+   own, so the water churns without any one resonance sweeping like a voice. */
 function makeBrook() {
   const sr = ctx.sampleRate, L = Math.floor(sr * 24), X = Math.floor(sr * 0.5);
-  const raw = new Float32Array(L + X);
-  const lpk = (fc) => {
+  const raw = new Float32Array(L + X), n = raw.length;
+  const smooth = (fc) => {
     const w = 2 * Math.PI * fc / sr, al = Math.sin(w) / Math.SQRT2, c = Math.cos(w), a0 = 1 + al;
-    return [(1 - c) / 2 / a0, (1 - c) / a0, (1 - c) / 2 / a0, -2 * c / a0, (1 - al) / a0];
-  };
-  const walk = (z) => {
-    z += (Math.random() * 2 - 1) * 0.125;
-    return z > 1 ? 2 - z : z < -1 ? -2 - z : z;
-  };
-  const voices = [
-    { mod: 18, base: 600, depth: 400, amp: 0.6 },
-    { mod: 26, base: 1100, depth: 800, amp: 1.6 },
-    { mod: 34, base: 1900, depth: 1100, amp: 1 }
-  ];
-  voices.forEach(v => {
-    const k = lpk(v.mod);
-    let src = 0, dark = 0, mb = 0, m1 = 0, m2 = 0, n1 = 0, n2 = 0, y1 = 0, y2 = 0;
-    let a0 = 0, b1 = 0, b2 = 0;
-    for (let i = 0; i < raw.length; i++) {
-      src = walk(src);
-      dark = 0.01 * src + 0.99 * dark;
-      mb = walk(mb);
-      const m = k[0] * mb + k[1] * m1 + k[2] * m2 - k[3] * n1 - k[4] * n2;
-      m2 = m1; m1 = mb; n2 = n1; n1 = m;
-      if ((i & 7) === 0) {
-        const f = Math.max(120, v.base + m * v.depth * 2.5), w = 2 * Math.PI * f / sr;
-        const D = Math.tan(w * 0.03 * 0.5), C = (1 - D) / (1 + D);
-        b1 = (1 + C) * Math.cos(w); b2 = -C; a0 = (1 + C + b1) * 0.25;
-      }
-      const y0 = a0 * dark + b1 * y1 + b2 * y2;
-      raw[i] += (y0 - 2 * y1 + y2) * v.amp;
-      y2 = y1; y1 = y0;
+    const b0 = (1 - c) / 2 / a0, b1 = (1 - c) / a0, a1 = -2 * c / a0, a2 = (1 - al) / a0;
+    const out = new Float32Array(n);
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0, s2 = 0;
+    for (let i = 0; i < n; i++) {
+      const x = Math.random() * 2 - 1, y = b0 * x + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
+      x2 = x1; x1 = x; y2 = y1; y1 = y; out[i] = y; s2 += y * y;
     }
-  });
+    const k = 1 / (Math.sqrt(s2 / n) || 1);
+    for (let i = 0; i < n; i++) out[i] *= k;
+    return out;
+  };
+  const BANDS = 6;
+  for (let v = 0; v < BANDS; v++) {
+    const base = 450 * Math.pow(8, v / (BANDS - 1)) * (0.9 + Math.random() * 0.2);
+    const amp = Math.pow(450 / base, 0.25), Q = 5;
+    const wob = smooth(5 + Math.random() * 6), env = smooth(2 + Math.random() * 3);
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0, b0 = 0, a1 = 0, a2 = 0;
+    for (let i = 0; i < n; i++) {
+      if ((i & 7) === 0) {
+        const w = 2 * Math.PI * base * (1 + 0.1 * wob[i]) / sr, al = Math.sin(w) / (2 * Q), a0 = 1 + al;
+        b0 = al / a0; a1 = -2 * Math.cos(w) / a0; a2 = (1 - al) / a0;
+      }
+      const x = Math.random() * 2 - 1, y = b0 * x - b0 * x2 - a1 * y1 - a2 * y2;
+      x2 = x1; x1 = x; y2 = y1; y1 = y;
+      const e = Math.max(0, 0.4 + env[i]);
+      raw[i] += y * e * e * amp;
+    }
+  }
   const buf = ctx.createBuffer(1, L, sr), d = buf.getChannelData(0);
   for (let i = 0; i < L; i++) {
     if (i < X) {
@@ -244,11 +242,13 @@ function makeBrook() {
       d[i] = raw[i];
     }
   }
-  let s = 0, pk = 0;
+  let s = 0;
   for (let i = 0; i < L; i++) s += d[i] * d[i];
-  const g = 0.1 / (Math.sqrt(s / L) || 1);
-  for (let i = 0; i < L; i++) { d[i] *= g; pk = Math.max(pk, Math.abs(d[i])); }
-  if (pk > 0.95) { const f = 0.95 / pk; for (let i = 0; i < L; i++) d[i] *= f; }
+  const g = 0.07 / (Math.sqrt(s / L) || 1);
+  for (let i = 0; i < L; i++) {
+    const v = d[i] * g, m = Math.abs(v);
+    d[i] = m > 0.7 ? Math.sign(v) * (0.7 + 0.25 * Math.tanh((m - 0.7) / 0.25)) : v;
+  }
   return buf;
 }
 
@@ -346,8 +346,8 @@ const BUILD = {
     if (!bufs.brook) bufs.brook = makeBrook();
     wide(bufs.brook, s => {
       const hp = filt('highpass', 180, 0.6), lp = filt('lowpass', 5000, 0.5), g = ctx.createGain();
-      g.gain.value = 1; P.push(hp, lp, g);
-      lfo(0.04 + Math.random() * 0.04, 0.15, g.gain, P);
+      g.gain.value = 0.8; P.push(hp, lp, g);
+      lfo(0.04 + Math.random() * 0.04, 0.12, g.gain, P);
       s.connect(hp); hp.connect(lp); lp.connect(g); return g;
     }, L.gain, P);
     wide(bufs.pink, s => {
