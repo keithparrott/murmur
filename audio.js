@@ -1,8 +1,7 @@
 'use strict';
 /* Audio engine, layers, drift, transport and sleep timer. */
 /* ---------- audio engine ---------- */
-let ctx = null, nodes = null, bufs = null, layers = {}, routed = false;
-const audioEl = $('#out');
+let ctx = null, nodes = null, bufs = null, layers = {};
 
 function volGain(v) { return Math.pow(v, 2) * 0.9; }
 
@@ -430,17 +429,11 @@ function ensureCtx() {
   return true;
 }
 
-async function routeOut() {
-  if (routed) { try { await audioEl.play(); } catch (e) {} return; }
-  try {
-    if (!('srcObject' in audioEl) || !ctx.createMediaStreamDestination) return;
-    const dest = ctx.createMediaStreamDestination();
-    audioEl.srcObject = dest.stream;
-    await audioEl.play();
-    nodes.comp.connect(dest);
-    nodes.comp.disconnect(ctx.destination);
-    routed = true;
-  } catch (e) { /* keep the direct output */ }
+/* Ask iOS to treat this as media playback so the ring/silent switch doesn't mute it.
+   Output stays on ctx.destination: routing through a MediaStream into an <audio>
+   element adds a second clock and jitter buffer, which drops out. */
+function setAudioSession() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
 }
 
 function setLayer(id, v) {
@@ -483,7 +476,7 @@ const bandVals = new Float32Array(BANDS);
 async function play() {
   if (!ensureCtx()) { setStatus('This browser cannot play Web Audio.', true); return; }
   try { await ctx.resume(); } catch (e) {}
-  await routeOut();
+  setAudioSession();
   state.playing = true;
   state.slept = false;
   const t = ctx.currentTime, g = nodes.play.gain;
@@ -513,7 +506,6 @@ function pause(finished) {
     nodes.fade.gain.cancelScheduledValues(0);
     nodes.fade.gain.value = 1;
     try { ctx.suspend(); } catch (e) {}
-    try { audioEl.pause(); } catch (e) {}
   }, 750);
   bandVals.fill(0);
   drawScope(false);
